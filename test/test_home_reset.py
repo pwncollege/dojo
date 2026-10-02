@@ -31,7 +31,7 @@ def load_module(name, path):
 
 
 storage = load_module("home_reset_storage", "homefs/reset_home.py")
-orchestration = load_module("home_reset_orchestration", "dojo_plugin/utils/home_reset.py")
+orchestration = load_module("home_reset_orchestration", "site/dojo/utils/home_reset.py")
 
 
 @pytest.fixture

@@ -92,7 +92,7 @@ async function home_download_and_show(action) {
     results.html(loading_template);
     results.find("#message").text("Preparing your backup download...");
     try {
-        const response = await CTFd.fetch(`/pwncollege_api/v1/workspace/${action}_home`, {
+        const response = await Dojo.fetch(`/pwncollege_api/v1/workspace/${action}_home`, {
             method: "POST",
             credentials: "same-origin",
             headers: { Accept: "application/gzip", "Content-Type": "application/json" },

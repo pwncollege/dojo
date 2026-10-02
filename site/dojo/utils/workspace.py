@@ -4,9 +4,9 @@ import logging
 import docker
 import redis
 import requests
-from ..models import Users
 from flask import current_app
 
+from ..models import Users
 from . import user_docker_client
 from .home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, manage_home_directory
 from .request_logging import log_generator_output

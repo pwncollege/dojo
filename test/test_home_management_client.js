@@ -3,7 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const source = fs.readFileSync(path.join(__dirname, "../dojo_theme/static/js/dojo/settings.js"), "utf8").split("$(() => {")[0];
+const source = fs.readFileSync(path.join(__dirname, "../site/theme/static/js/dojo/settings.js"), "utf8").split("$(() => {")[0];
+const client = fs.readFileSync(path.join(__dirname, "../site/theme/static/js/dojo/util.js"), "utf8").split("$.fn.serializeJSON")[0];
 
 async function exercise(action, response, accepted = true) {
     const events = [];
@@ -18,11 +19,12 @@ async function exercise(action, response, accepted = true) {
             prop: (name, value) => { disabled = value; events.push([name, value]); },
         },
         confirm: () => accepted,
-        CTFd: { fetch: async (url, options) => {
+        init: { urlRoot: "", csrfNonce: "test-nonce" },
+        fetch: async (url, options) => {
             events.push(["fetch", url, options]);
             if (response instanceof Error) throw response;
             return response;
-        } },
+        },
         document: {
             createElement: () => ({ click: () => events.push(["download"]), remove: () => {} }),
             body: { appendChild: link => events.push(["filename", link.download]) },
@@ -30,6 +32,8 @@ async function exercise(action, response, accepted = true) {
         URL: { createObjectURL: () => "blob:test", revokeObjectURL: () => {} },
         setTimeout: callback => callback(),
     });
+    context.window = context;
+    vm.runInContext(client, context);
     vm.runInContext(source, context);
     await context.home_download_and_show(action);
     return { events, message, disabled };
@@ -52,6 +56,7 @@ function archive(status = "success", message = "Home backup downloaded.") {
         assert.equal(request[2].method, "POST");
         assert.equal(request[2].credentials, "same-origin");
         assert.equal(request[2].body, "{}");
+        assert.equal(request[2].headers["CSRF-Token"], "test-nonce");
         assert.ok(result.events.some(event => event[0] === "download"));
         assert.ok(result.events.some(event => event[0] === "filename" && event[1] === "home-backup.tar.gz"));
         assert.match(result.message, /2 file\(s\) larger than 10 MB/);
