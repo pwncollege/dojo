@@ -52,10 +52,6 @@ class WorkspaceService {
     return dojoApiClient.post('/workspace/reset_home')
   }
 
-  async backupHome(): Promise<Blob> {
-    return dojoApiClient.download('/workspace/backup_home')
-  }
-
   // Terminate/kill the current workspace
   async terminateWorkspace(): Promise<{ success: boolean; error?: string; message?: string }> {
     return dojoApiClient.delete('/docker')

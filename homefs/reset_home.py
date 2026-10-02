@@ -1,7 +1,6 @@
 import errno
 import fcntl
 import gzip
-import json
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -42,11 +41,8 @@ def locked_home(volume_path):
 
 def backup_home(volume_path, output):
     with locked_home(volume_path) as home:
-        skipped = 0
         def include(member):
-            nonlocal skipped
             if (member.isfile() or member.islnk()) and (home / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
-                skipped += 1
                 return None
             return member
 
@@ -55,7 +51,7 @@ def backup_home(volume_path, output):
             with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
                 archive.add(home, arcname="home/hacker", filter=include)
         output.flush()
-        return {"size": writer.size, "skipped": skipped}
+        return writer.size
 
 
 def reset_home(volume_path):
@@ -67,7 +63,6 @@ def reset_home(volume_path):
                 entry.unlink()
         os.chown(home, 1000, 1000)
         os.chmod(home, 0o755)
-    return {}
 
 
 def main():
@@ -76,16 +71,14 @@ def main():
             raise ValueError("Invalid user ID")
         volume_path = Path(os.environ.get("STORAGE_ROOT", "/data")) / str(int(sys.argv[1]))
         if sys.argv[2] == "backup":
-            detail = backup_home(volume_path, sys.stdout.buffer)
+            print(backup_home(volume_path, sys.stdout.buffer), file=sys.stderr)
         elif sys.argv[2] == "reset":
-            detail = reset_home(volume_path)
+            reset_home(volume_path)
         else:
             raise ValueError("Invalid home operation")
     except Exception as error:
-        status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(getattr(error, "errno", None), 500)
-        print(json.dumps({"event": "failed", "status": status, "error": str(error)}), file=sys.stderr)
-        return 1
-    print(json.dumps({"event": "complete", **detail}), file=sys.stderr)
+        print(str(error), file=sys.stderr)
+        return getattr(error, "errno", None) or 1
     return 0
 
 

@@ -1,14 +1,18 @@
 import hmac
 import os
+from contextlib import closing
+from itertools import chain
 
+import redis
 from flask_restx import Namespace, Resource
-from flask import request, url_for, abort
+from flask import request, url_for, abort, current_app, Response
 from ...models import Users
 from ...utils.user import get_current_user, is_admin
 from ...utils.decorators import authed_only
 
-from ...utils import get_current_container, container_password, parse_positive_int, user_node
-from ...utils.workspace import start_on_demand_service, manage_home, HomeResetError
+from ...utils import get_current_container, container_password, parse_positive_int, user_node, user_docker_client
+from ...utils.workspace import start_on_demand_service
+from ...utils.home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, manage_home_directory
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -137,7 +141,25 @@ class BackupHome(Resource):
 
 def home_operation(action):
     try:
-        return manage_home(get_current_user().id, action)
+        user = get_current_user()
+        redis_client = redis.from_url(current_app.config["REDIS_URL"])
+        check_home_rate_limit(redis_client, user.id, action)
+        lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
+                                 blocking_timeout=0, raise_on_release_error=False)
+        stream = manage_home_directory(user_docker_client(user), user.id, lock, action=action)
+        if action == "reset":
+            with closing(stream):
+                for _ in stream:
+                    pass
+            return {"success": True, "message": "Home reset. Start a new challenge to continue."}
+        first = next(stream)
+        response = Response(chain((first,), stream), mimetype="application/gzip", headers={
+            "Content-Disposition": "attachment; filename=home-backup.tar.gz",
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        })
+        response.call_on_close(stream.close)
+        return response
     except HomeResetError as error:
         headers = {"Retry-After": str(error.retry_after)} if error.retry_after else {}
         return {"success": False, "error": str(error)}, error.status, headers

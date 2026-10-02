@@ -905,6 +905,8 @@ def home_archive(response):
     assert response.status_code == 200, response.text[:500]
     assert response.headers["Content-Type"] == "application/gzip"
     assert "attachment" in response.headers["Content-Disposition"]
+    assert "Content-Length" not in response.headers
+    assert response.headers["Cache-Control"] == "no-store"
     return tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz")
 
 

@@ -34,7 +34,8 @@ from ...utils import (
     UserTokenExpiredException,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
-from ...utils.workspace import exec_run, HOME_RESET_LOCK_TIMEOUT
+from ...utils.workspace import exec_run
+from ...utils.home_reset import HOME_RESET_LOCK_TIMEOUT
 from ...utils.feed import publish_container_start
 from ...utils.background_stats import publish_stat_event
 from ...utils.request_logging import get_trace_id, log_generator_output
