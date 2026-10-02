@@ -8,7 +8,7 @@ from ..models import Users
 from flask import current_app
 
 from . import user_docker_client
-from .home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, reset_home_directory
+from .home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, manage_home_directory
 from .request_logging import log_generator_output
 
 logger = logging.getLogger(__name__)
@@ -63,9 +63,10 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
         assert exit_code in (0, None), output
     return exit_code, output
 
-def reset_home(user_id):
-    docker_client = user_docker_client(Users.query.get(user_id))
+def manage_home(user_id, action):
     redis_client = redis.from_url(current_app.config["REDIS_URL"])
+    check_home_rate_limit(redis_client, user_id, downloads_only=action == "latest")
+    docker_client = user_docker_client(Users.query.get(user_id))
     lock = redis_client.lock(f"user.{user_id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
                              blocking_timeout=0, raise_on_release_error=False)
-    reset_home_directory(docker_client, user_id, lock)
+    return manage_home_directory(docker_client, user_id, lock, action=action)

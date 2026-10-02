@@ -84,6 +84,48 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
     });
 }
 
+async function home_download_and_show(action) {
+    if (action === "reset" && !confirm("Reset your home directory? This stops your current challenge and deletes all home files. Files larger than 10 MB will not be backed up.")) return;
+    const buttons = $("#backup-home-button, #reset-home-button");
+    const results = $("#home-management-results");
+    buttons.prop("disabled", true);
+    results.html(loading_template);
+    results.find("#message").text("Preparing your backup download...");
+    try {
+        const response = await CTFd.fetch(`/pwncollege_api/v1/workspace/${action}_home`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { Accept: "application/gzip", "Content-Type": "application/json" },
+            body: JSON.stringify({})
+        });
+        if (!(response.headers.get("Content-Type") || "").includes("application/gzip")) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || "Could not prepare the home backup. Please try again.");
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "home-backup.tar.gz";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        const completed = response.headers.get("X-Home-Operation-Status") === "success";
+        const skipped = Number(response.headers.get("X-Home-Backup-Skipped-Files"));
+        let message = response.headers.get("X-Home-Operation-Message") || "Backup download started.";
+        if (!completed) message = `Backup download started. ${message}`;
+        if (skipped > 0) message += ` ${skipped} file(s) larger than 10 MB were excluded.`;
+        results.html(completed ? success_template : error_template);
+        results.find("#message").text(message);
+    } catch (error) {
+        results.html(error_template);
+        results.find("#message").text(error.message || "Download failed. Use the latest backup link to retry.");
+    } finally {
+        buttons.prop("disabled", false);
+    }
+}
+
 $(() => {
     form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "POST", "Your public key has been updated");
     form_fetch_and_show("discord", "/pwncollege_api/v1/discord", "DELETE", "Your discord account has been disconnected");
@@ -102,9 +144,8 @@ $(() => {
         var confirmation = prompt(`Are you sure you want to delete the dojo?\nEnter the dojo name\n\n${x.dojo}\n\nto confirm this action.\nThis action cannot be undone.`);
         return confirmation === x.dojo
     });
-    button_fetch_and_show("reset-home", "/pwncollege_api/v1/workspace/reset_home", "POST", {}, "Home directory reset successfully. Start a new challenge to continue.", "Home directory reset canceled", function() {
-      return confirm("Are you sure you want to reset your home directory? This will stop your current challenge.");
-    });
+    $("#backup-home-button").click(() => home_download_and_show("backup"));
+    $("#reset-home-button").click(() => home_download_and_show("reset"));
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];
         input.select();

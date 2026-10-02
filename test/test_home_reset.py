@@ -1,15 +1,20 @@
 import errno
 import fcntl
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
+import subprocess
 import tarfile
 from types import SimpleNamespace
+from contextlib import nullcontext
 from unittest.mock import Mock
 
 import docker
+from flask import Flask
 import pytest
 import redis
 import requests
@@ -31,22 +36,23 @@ orchestration = load_module("home_reset_orchestration", "dojo_plugin/utils/home_
 
 
 @pytest.fixture
-def volume(tmp_path):
+def volume(tmp_path, monkeypatch):
     path = tmp_path / "42"
     home = path / "active"
     home.mkdir(parents=True)
     (home / "saved-file").write_text("saved data")
+    monkeypatch.setattr(storage, "backup_source", lambda home, directory: nullcontext(home))
     return path
 
 
 def backup_contents(path):
-    with tarfile.open(path, "r:gz") as archive:
+    arguments = {"fileobj": path} if hasattr(path, "read") else {"name": path}
+    with tarfile.open(mode="r:gz", **arguments) as archive:
         return {member.name: archive.extractfile(member).read()
                 for member in archive.getmembers() if member.isfile()}
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
-def test_reset_preserves_hidden_files_links_and_socket_backups(volume, tmp_path, monkeypatch):
+def test_backup_preserves_home_and_archives_hidden_files_and_links(volume, tmp_path, monkeypatch):
     home = volume / "active"
     hidden = home / ".config" / "nested"
     hidden.mkdir(parents=True)
@@ -57,10 +63,8 @@ def test_reset_preserves_hidden_files_links_and_socket_backups(volume, tmp_path,
     monkeypatch.chdir(home)
     with socket.socket(socket.AF_UNIX) as listener:
         listener.bind("service.sock")
-        storage.reset_home(volume)
-
-    backup = home / "home-backup.tar.gz"
-    assert list(home.iterdir()) == [backup]
+        detail = storage.backup_home(volume)
+    backup = Path(detail["backup"])
     assert backup_contents(backup) == {
         "home/hacker/.config/nested/settings": b"settings",
         "home/hacker/saved-file": b"saved data",
@@ -69,13 +73,13 @@ def test_reset_preserves_hidden_files_links_and_socket_backups(volume, tmp_path,
         link = archive.getmember("home/hacker/outside-link")
         assert link.issym() and link.linkname == str(outside)
     assert outside.read_text() == "keep outside"
-    assert home.stat().st_uid == 1000 and home.stat().st_mode & 0o777 == 0o755
-    assert backup.stat().st_uid == 1000 and backup.stat().st_mode & 0o777 == 0o600
-    assert not list((volume / "reset-backups").iterdir())
+    assert (home / "saved-file").read_text() == "saved data"
+    assert not (home / "home-backup.tar.gz").exists()
+    assert backup.stat().st_mode & 0o777 == 0o600
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="requires root to create root-owned unreadable files")
-def test_reset_backs_up_root_owned_private_directories(volume):
+@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
+def test_reset_backs_up_root_owned_files_and_leaves_an_empty_writable_home(volume):
     home = volume / "active"
     for name in (".emacs.d", ".gunicorn"):
         private = home / name
@@ -83,141 +87,160 @@ def test_reset_backs_up_root_owned_private_directories(volume):
         (private / "private-file").write_text("private data")
     os.chown(home, 1000, 1000)
     os.chmod(home, 0)
-
+    detail = storage.backup_home(volume)
     storage.reset_home(volume)
-
-    backup = home / "home-backup.tar.gz"
-    contents = backup_contents(backup)
+    contents = backup_contents(detail["backup"])
     for name in (".emacs.d", ".gunicorn"):
         assert contents[f"home/hacker/{name}/private-file"] == b"private data"
-        with tarfile.open(backup, "r:gz") as archive:
-            member = archive.getmember(f"home/hacker/{name}")
-            assert member.uid == 0 and member.mode == 0o700
+    assert not list(home.iterdir())
+    assert home.stat().st_uid == home.stat().st_gid == 1000
+    assert home.stat().st_mode & 0o777 == 0o755
 
 
-def test_backup_write_failure_does_not_delete_home(volume, monkeypatch):
+def test_backup_includes_the_10_mb_boundary_and_excludes_larger_files_and_hardlinks(volume):
+    home = volume / "active"
+    for name, size in (("boundary", 10_000_000), ("large", 10_000_001)):
+        with (home / name).open("wb") as stream:
+            stream.truncate(size)
+    os.link(home / "large", home / "large-link")
+    detail = storage.backup_home(volume)
+    with tarfile.open(detail["backup"], "r:gz") as archive:
+        assert archive.getmember("home/hacker/boundary").size == 10_000_000
+        assert "home/hacker/large" not in archive.getnames()
+        assert "home/hacker/large-link" not in archive.getnames()
+    assert detail["skipped"] == 2
+    assert (home / "large").stat().st_size == 10_000_001
+
+
+def test_backup_failure_preserves_the_home_and_previous_verified_archive(volume, monkeypatch):
+    storage.backup_home(volume)
+    backup = storage.archive_path(volume)
+    previous = backup.read_bytes()
+    (volume / "active" / "new-file").write_text("new data")
     def fail(*args, **kwargs):
         raise OSError(errno.ENOSPC, "No space left on device")
-
     monkeypatch.setattr(tarfile.TarFile, "add", fail)
     with pytest.raises(storage.HomeResetFailure) as failure:
-        storage.reset_home(volume)
-    assert failure.value.phase == "backup" and failure.value.backup is None
-    assert (volume / "active" / "saved-file").read_text() == "saved data"
-    assert not list((volume / "reset-backups").iterdir())
-
-
-def test_backup_verification_failure_does_not_delete_home(volume, monkeypatch):
-    def fail(path):
-        raise EOFError("Truncated archive")
-
-    monkeypatch.setattr(storage, "verify_backup", fail)
-    with pytest.raises(storage.HomeResetFailure) as failure:
-        storage.reset_home(volume)
+        storage.backup_home(volume)
     assert failure.value.phase == "backup"
+    assert backup.read_bytes() == previous
+    assert (volume / "active" / "new-file").read_text() == "new data"
+    assert list(backup.parent.iterdir()) == [backup]
+
+
+def test_verification_failure_does_not_delete_home(volume, monkeypatch):
+    monkeypatch.setattr(storage, "verify_backup", Mock(side_effect=EOFError("Truncated archive")))
+    with pytest.raises(storage.HomeResetFailure):
+        storage.backup_home(volume)
     assert (volume / "active" / "saved-file").read_text() == "saved data"
-    assert not list((volume / "reset-backups").iterdir())
+    assert not list((volume / "home-backups").iterdir())
 
 
-def test_delete_failure_preserves_verified_backup_outside_home(volume, monkeypatch):
+@pytest.mark.parametrize("compressible", [False, True])
+def test_archive_limit_aborts_before_home_deletion(volume, monkeypatch, compressible):
+    monkeypatch.setattr(storage, "MAX_ARCHIVE_SIZE", 16 * 1024)
+    data = b"x" * 64 * 1024 if compressible else os.urandom(64 * 1024)
+    (volume / "active" / "file").write_bytes(data)
+    with pytest.raises(storage.HomeResetFailure) as failure:
+        storage.backup_home(volume)
+    assert "archive limit" in str(failure.value)
+    assert (volume / "active" / "file").read_bytes() == data
+    assert not list((volume / "home-backups").iterdir())
+
+
+def test_repeated_failed_resets_do_not_accumulate_archives(volume, monkeypatch):
     folder = volume / "active" / "folder"
     folder.mkdir()
-    (folder / "file").write_text("nested data")
+    (folder / "data").write_text("data")
+    monkeypatch.setattr(storage.shutil, "rmtree", Mock(side_effect=OSError(errno.EIO, "Input/output error")))
+    for attempt in range(4):
+        storage.backup_home(volume)
+        with pytest.raises(storage.HomeResetFailure) as failure:
+            storage.reset_home(volume)
+        assert failure.value.phase == "reset"
+        assert Path(failure.value.backup) == storage.archive_path(volume)
+        assert list((volume / "home-backups").iterdir()) == [storage.archive_path(volume)]
 
-    def fail(path):
-        raise OSError(errno.EIO, "Input/output error")
 
-    monkeypatch.setattr(storage.shutil, "rmtree", fail)
-    with pytest.raises(storage.HomeResetFailure) as failure:
+def test_abandoned_partial_archive_is_replaced_automatically(volume):
+    storage.backup_home(volume)
+    partial = storage.archive_path(volume).with_suffix(".partial")
+    partial.write_bytes(b"interrupted")
+    (volume / "active" / "new-file").write_text("new data")
+    storage.backup_home(volume)
+    assert not partial.exists()
+    assert backup_contents(storage.archive_path(volume))["home/hacker/new-file"] == b"new data"
+    assert list((volume / "home-backups").iterdir()) == [storage.archive_path(volume)]
+
+
+def test_reset_requires_a_verified_backup_before_deleting_anything(volume):
+    with pytest.raises(storage.HomeResetFailure):
         storage.reset_home(volume)
-    assert failure.value.phase == "delete"
-    assert backup_contents(failure.value.backup) == {
-        "home/hacker/saved-file": b"saved data",
-        "home/hacker/folder/file": b"nested data",
-    }
+    assert (volume / "active" / "saved-file").exists()
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
-def test_restore_failure_preserves_verified_backup_outside_home(volume, monkeypatch):
-    def fail(*args, **kwargs):
-        raise OSError(errno.EDQUOT, "Disk quota exceeded")
-
-    monkeypatch.setattr(storage.shutil, "copyfileobj", fail)
-    with pytest.raises(storage.HomeResetFailure) as failure:
-        storage.reset_home(volume)
-    assert failure.value.phase == "restore"
-    assert backup_contents(failure.value.backup) == {"home/hacker/saved-file": b"saved data"}
-    assert not list((volume / "active").iterdir())
-
-
-def test_busy_volume_does_not_change_home(volume):
+@pytest.mark.parametrize("action", ["backup_home", "reset_home", "latest_backup"])
+def test_busy_home_prevents_operations(volume, action):
     with (volume / ".active.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         with pytest.raises(storage.HomeResetFailure) as failure:
-            storage.reset_home(volume)
+            getattr(storage, action)(volume)
     assert failure.value.phase == "lock"
     assert (volume / "active" / "saved-file").read_text() == "saved data"
-    assert not (volume / "reset-backups").exists()
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
-def test_failed_partial_restore_cleanup_does_not_hide_recovery_backup(volume, monkeypatch):
-    unlink = Path.unlink
-
-    def fail_copy(*args, **kwargs):
-        raise OSError(errno.EDQUOT, "Disk quota exceeded")
-
-    def fail_cleanup(path, *args, **kwargs):
-        if path.name.startswith(".home-backup-"):
-            raise OSError(errno.EIO, "Input/output error")
-        return unlink(path, *args, **kwargs)
-
-    monkeypatch.setattr(storage.shutil, "copyfileobj", fail_copy)
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+def test_latest_backup_does_not_create_an_archive(volume):
     with pytest.raises(storage.HomeResetFailure) as failure:
-        storage.reset_home(volume)
-    assert failure.value.phase == "restore"
-    assert "Disk quota exceeded" in str(failure.value)
-    assert backup_contents(failure.value.backup) == {"home/hacker/saved-file": b"saved data"}
+        storage.latest_backup(volume)
+    assert failure.value.phase == "missing"
+    detail = storage.backup_home(volume)
+    assert storage.latest_backup(volume)["backup"] == detail["backup"]
 
 
-def test_missing_active_volume_does_not_create_a_home(tmp_path):
-    with pytest.raises(storage.HomeResetFailure):
-        storage.reset_home(tmp_path / "42")
-    assert not (tmp_path / "42").exists()
+def test_latest_backup_remains_available_without_an_active_home(volume):
+    detail = storage.backup_home(volume)
+    shutil.rmtree(volume / "active")
+    assert storage.latest_backup(volume)["backup"] == detail["backup"]
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
-def test_repeat_reset_keeps_previous_backup_inside_new_archive(volume):
-    storage.reset_home(volume)
-    previous = (volume / "active" / "home-backup.tar.gz").read_bytes()
-    storage.reset_home(volume)
-    assert backup_contents(volume / "active" / "home-backup.tar.gz") == {
-        "home/hacker/home-backup.tar.gz": previous,
-    }
-    assert not list((volume / "reset-backups").iterdir())
+def test_latest_backup_is_missing_for_a_user_without_storage(tmp_path):
+    with pytest.raises(storage.HomeResetFailure) as failure:
+        storage.latest_backup(tmp_path / "42")
+    assert failure.value.phase == "missing"
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="homefs resets run as root")
-def test_cleanup_failure_does_not_report_a_completed_reset_as_failed(volume, monkeypatch, capsys):
-    unlink = Path.unlink
-
-    def fail_cleanup(path, *args, **kwargs):
-        if path.parent.name == "reset-backups":
-            raise OSError(errno.EIO, "Input/output error")
-        return unlink(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
-    storage.reset_home(volume)
-    assert backup_contents(volume / "active" / "home-backup.tar.gz") == {"home/hacker/saved-file": b"saved data"}
-    assert json.loads(capsys.readouterr().err)["event"] == "cleanup_failed"
+def test_backup_source_uses_and_removes_a_readonly_btrfs_snapshot(tmp_path, monkeypatch):
+    run = Mock()
+    monkeypatch.setattr(storage.subprocess, "run", run)
+    with pytest.raises(RuntimeError):
+        with storage.backup_source(tmp_path / "active", tmp_path) as source:
+            assert source == tmp_path / "source"
+            raise RuntimeError("archive failed")
+    assert run.call_args_list[0].args[0] == [
+        "btrfs", "subvolume", "snapshot", "-r", str(tmp_path / "active"), str(tmp_path / "source")
+    ]
+    assert run.call_args_list[1].args[0] == ["btrfs", "subvolume", "delete", str(tmp_path / "source")]
 
 
 @pytest.fixture
 def clients():
-    container = Mock(status="running", attrs={"State": {"Paused": False}})
+    payload = io.BytesIO()
+    with tarfile.open(fileobj=payload, mode="w:gz") as archive:
+        data = b"saved data"
+        member = tarfile.TarInfo("home/hacker/saved-file")
+        member.size = len(data)
+        archive.addfile(member, io.BytesIO(data))
+    compressed = payload.getvalue()
+    wrapped = io.BytesIO()
+    with tarfile.open(fileobj=wrapped, mode="w") as archive:
+        member = tarfile.TarInfo("backup.tar.gz")
+        member.size = len(compressed)
+        archive.addfile(member, io.BytesIO(compressed))
+    container = Mock(status="running")
     homefs = Mock()
-    homefs.exec_run.return_value = (0, (b'{"event":"complete"}\n', None))
+    detail = {"event": "complete", "backup": "/storage/42/home-backups/backup.tar.gz", "size": len(compressed), "skipped": 1}
+    homefs.exec_run.return_value = (0, (json.dumps(detail).encode(), None))
+    homefs.get_archive.return_value = (iter([wrapped.getvalue()[i:i+19] for i in range(0, len(wrapped.getvalue()), 19)]), {})
     client = Mock(api=SimpleNamespace(timeout=60))
     client.containers.get.side_effect = lambda name: {"user_42": container, "homefs": homefs}[name]
     lock = Mock()
@@ -225,26 +248,23 @@ def clients():
     return client, container, homefs, lock
 
 
-def test_reset_stops_workspace_under_lock_before_using_storage_tools(clients):
+def test_reset_stops_under_lock_and_copies_backup_before_deleting_home(clients):
     client, container, homefs, lock = clients
-
-    def stop(*args, **kwargs):
-        lock.acquire.assert_called_once_with(blocking=False)
-        lock.release.assert_not_called()
-
-    container.stop.side_effect = stop
-
-    def reset(*args, **kwargs):
+    original = homefs.exec_run.return_value
+    def run(command, **kwargs):
         container.stop.assert_called_once_with(timeout=10)
         container.wait.assert_called_once_with(condition="removed", timeout=30)
         lock.release.assert_not_called()
+        if command[-1] == "reset":
+            homefs.get_archive.assert_called_once()
         assert kwargs["user"] == "0"
-        assert client.api.timeout > orchestration.HOME_RESET_TIMEOUT
-        return 0, (b'{"event":"complete"}\n', None)
-
-    homefs.exec_run.side_effect = reset
-    orchestration.reset_home_directory(client, 42, lock)
-    container.exec_run.assert_not_called()
+        return original
+    homefs.exec_run.side_effect = run
+    archive = orchestration.manage_home_directory(client, 42, lock)
+    assert archive.status == "success"
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup", "reset"]
+    assert backup_contents(archive.file) == {"home/hacker/saved-file": b"saved data"}
+    archive.file.close()
     container.start.assert_not_called()
     container.pause.assert_not_called()
     container.unpause.assert_not_called()
@@ -252,74 +272,37 @@ def test_reset_stops_workspace_under_lock_before_using_storage_tools(clients):
     assert client.api.timeout == 60
 
 
+@pytest.mark.parametrize("action", ["backup", "latest"])
+def test_non_destructive_download_keeps_workspace_running(clients, action):
+    client, container, homefs, lock = clients
+    archive = orchestration.manage_home_directory(client, 42, lock, action=action)
+    assert backup_contents(archive.file) == {"home/hacker/saved-file": b"saved data"}
+    archive.file.close()
+    container.stop.assert_not_called()
+    container.exec_run.assert_not_called()
+    lock.release.assert_called_once()
+
+
 def test_competing_workspace_operation_prevents_reset(clients):
     client, container, homefs, lock = clients
     lock.acquire.return_value = False
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock)
     assert failure.value.status == 409
     client.containers.get.assert_not_called()
     lock.release.assert_not_called()
 
 
-def test_missing_workspace_returns_conflict(clients):
+@pytest.mark.parametrize("status", ["exited", "paused"])
+def test_inactive_workspace_is_not_reset(clients, status):
     client, container, homefs, lock = clients
-    client.containers.get.side_effect = docker.errors.NotFound("missing")
+    container.status = status
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
-    assert failure.value.status == 409
-    container.stop.assert_not_called()
-    lock.release.assert_called_once()
-
-
-def test_stopped_workspace_is_not_reset(clients):
-    client, container, homefs, lock = clients
-    container.status = "exited"
-    with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock)
     assert failure.value.status == 409
     container.stop.assert_not_called()
     homefs.exec_run.assert_not_called()
     lock.release.assert_called_once()
-
-
-def test_previously_paused_workspace_is_not_reset(clients):
-    client, container, homefs, lock = clients
-    container.status = "paused"
-    with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
-    assert failure.value.status == 409
-    container.stop.assert_not_called()
-    container.unpause.assert_not_called()
-    homefs.exec_run.assert_not_called()
-    lock.release.assert_called_once()
-
-
-def test_storage_failure_leaves_workspace_stopped_and_reports_backup(clients, caplog):
-    client, container, homefs, lock = clients
-    detail = {"event": "failed", "phase": "restore", "error": "Disk quota exceeded", "backup": "/42/reset-backups/backup.tar.gz"}
-    homefs.exec_run.return_value = (1, (None, json.dumps(detail).encode()))
-    with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
-    assert failure.value.status == 500
-    assert "backup was preserved" in str(failure.value)
-    assert detail["backup"] not in str(failure.value)
-    assert "Disk quota exceeded" in caplog.text
-    container.stop.assert_called_once()
-    container.start.assert_not_called()
-    lock.release.assert_called_once()
-
-
-def test_lost_storage_connection_keeps_workspace_stopped_and_lock_held(clients):
-    client, container, homefs, lock = clients
-    homefs.exec_run.side_effect = requests.ConnectionError("connection lost")
-    with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
-    assert failure.value.status == 503 and failure.value.uncertain
-    container.stop.assert_called_once()
-    container.start.assert_not_called()
-    lock.release.assert_not_called()
-    assert client.api.timeout == 60
 
 
 @pytest.mark.parametrize("operation", ["stop", "wait"])
@@ -327,55 +310,146 @@ def test_stop_failure_does_not_modify_home(clients, operation):
     client, container, homefs, lock = clients
     getattr(container, operation).side_effect = requests.ConnectionError("connection lost")
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock)
     assert failure.value.status == 503
     homefs.exec_run.assert_not_called()
-    container.start.assert_not_called()
     lock.release.assert_called_once()
 
 
 @pytest.mark.parametrize("operation", ["stop", "wait"])
-def test_automatically_removed_workspace_can_still_be_reset(clients, operation):
+def test_automatic_container_removal_race_is_safe(clients, operation):
     client, container, homefs, lock = clients
     getattr(container, operation).side_effect = docker.errors.NotFound("already removed")
-    orchestration.reset_home_directory(client, 42, lock)
-    homefs.exec_run.assert_called_once()
+    orchestration.manage_home_directory(client, 42, lock).file.close()
     lock.release.assert_called_once()
 
 
-def test_storage_timeout_leaves_workspace_stopped_and_reports_recovery_error(clients):
+def test_failed_backup_transfer_prevents_home_deletion(clients):
     client, container, homefs, lock = clients
-    homefs.exec_run.return_value = (124, (b'{"event":"backup_ready"}\n', None))
-    with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
-    assert "timed out" in str(failure.value)
-    container.stop.assert_called_once()
-    container.start.assert_not_called()
+    homefs.get_archive.side_effect = requests.ConnectionError("connection lost")
+    with pytest.raises(orchestration.HomeResetError):
+        orchestration.manage_home_directory(client, 42, lock)
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup"]
     lock.release.assert_called_once()
 
 
-def test_unknown_exec_exit_status_keeps_workspace_stopped_and_lock_held(clients):
+def test_truncated_backup_transfer_prevents_home_deletion(clients):
     client, container, homefs, lock = clients
-    homefs.exec_run.return_value = (None, (None, None))
+    homefs.get_archive.return_value = (iter([b"truncated"]), {})
+    with pytest.raises(orchestration.HomeResetError):
+        orchestration.manage_home_directory(client, 42, lock)
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup"]
+    lock.release.assert_called_once()
+
+
+def test_unavailable_storage_does_not_stop_workspace(clients):
+    client, container, homefs, lock = clients
+    client.containers.get.side_effect = docker.errors.NotFound("homefs")
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock)
+    assert failure.value.status == 503
+    container.stop.assert_not_called()
+    lock.release.assert_called_once()
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+def test_reset_failure_still_returns_backup_without_admin_intervention(clients, uncertain):
+    client, container, homefs, lock = clients
+    result = homefs.exec_run.return_value
+    def run(command, **kwargs):
+        if command[-1] == "reset":
+            if uncertain:
+                raise requests.ConnectionError("connection lost")
+            return 1, (None, b'{"phase":"reset","error":"Input/output error"}')
+        return result
+    homefs.exec_run.side_effect = run
+    archive = orchestration.manage_home_directory(client, 42, lock)
+    assert archive.status == ("unknown" if uncertain else "failed")
+    assert "administrator" not in archive.message
+    assert backup_contents(archive.file) == {"home/hacker/saved-file": b"saved data"}
+    archive.file.close()
+    assert lock.release.called is not uncertain
+    assert client.api.timeout == 60
+
+
+def test_lost_backup_connection_retains_operation_lock(clients):
+    client, container, homefs, lock = clients
+    homefs.exec_run.side_effect = requests.ConnectionError("connection lost")
+    with pytest.raises(orchestration.HomeResetError) as failure:
+        orchestration.manage_home_directory(client, 42, lock)
     assert failure.value.uncertain
-    container.stop.assert_called_once()
-    container.start.assert_not_called()
     lock.release.assert_not_called()
 
 
-def test_lock_service_failure_does_not_touch_workspace(clients):
+def test_http_response_is_gzip_attachment_and_closes_temporary_file(clients):
     client, container, homefs, lock = clients
-    lock.acquire.side_effect = redis.exceptions.ConnectionError("redis unavailable")
+    archive = orchestration.manage_home_directory(client, 42, lock)
+    app = Flask(__name__)
+    app.add_url_rule("/download", view_func=lambda: orchestration.home_download_response(archive))
+    with app.test_client() as browser:
+        response = browser.get("/download")
+        assert response.status_code == 200
+        assert response.headers["Content-Type"] == "application/gzip"
+        assert "attachment" in response.headers["Content-Disposition"]
+        assert "home-backup.tar.gz" in response.headers["Content-Disposition"]
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.headers["X-Home-Operation-Status"] == "success"
+        assert backup_contents(io.BytesIO(response.data)) == {"home/hacker/saved-file": b"saved data"}
+        response.close()
+    assert archive.file.closed
+
+
+@pytest.mark.parametrize("status, code", [("failed", 500), ("unknown", 503)])
+def test_failed_reset_response_still_delivers_backup(clients, status, code):
+    client, container, homefs, lock = clients
+    archive = orchestration.manage_home_directory(client, 42, lock)
+    archive.status = status
+    app = Flask(__name__)
+    app.add_url_rule("/download", view_func=lambda: orchestration.home_download_response(archive))
+    with app.test_client() as browser:
+        response = browser.get("/download")
+        assert response.status_code == code
+        assert response.headers["X-Home-Operation-Status"] == status
+        assert backup_contents(io.BytesIO(response.data)) == {"home/hacker/saved-file": b"saved data"}
+        response.close()
+    assert archive.file.closed
+
+
+def test_rate_limit_is_per_user_and_returns_retry_after():
+    cache = Mock()
+    cache.eval.return_value = 0
+    orchestration.check_home_rate_limit(cache, 42)
+    assert cache.eval.call_args.args[2] == "user.42.home.requests"
+    cache.eval.return_value = 3599
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.reset_home_directory(client, 42, lock)
+        orchestration.check_home_rate_limit(cache, 42)
+    assert failure.value.status == 429 and failure.value.retry_after == 3599
+
+
+def test_download_retries_have_a_separate_bounded_rate_limit():
+    cache = Mock()
+    cache.eval.return_value = 0
+    orchestration.check_home_rate_limit(cache, 42, downloads_only=True)
+    assert cache.eval.call_args.args[2] == "user.42.home.downloads"
+
+
+def test_rate_limit_service_failure_fails_closed():
+    cache = Mock()
+    cache.eval.side_effect = redis.exceptions.ConnectionError("redis unavailable")
+    with pytest.raises(orchestration.HomeResetError) as failure:
+        orchestration.check_home_rate_limit(cache, 42)
     assert failure.value.status == 503
-    client.containers.get.assert_not_called()
 
 
 @pytest.mark.parametrize("user_id", ["../42", "/42", "0", "-1", "１２"])
 def test_storage_command_rejects_invalid_user_id(user_id, monkeypatch, capsys):
-    monkeypatch.setattr(storage.sys, "argv", ["reset_home.py", user_id])
+    monkeypatch.setattr(storage.sys, "argv", ["reset_home.py", user_id, "backup"])
     assert storage.main() == 1
     assert json.loads(capsys.readouterr().err)["error"] == "Invalid user ID"
+
+
+def test_home_management_browser_download_and_error_flows():
+    node = shutil.which("node") or os.environ.get("HOME_MANAGEMENT_TEST_NODE")
+    if not node:
+        pytest.skip("Node.js is unavailable")
+    subprocess.run([node, str(ROOT / "test/test_home_management_client.js")], check=True)

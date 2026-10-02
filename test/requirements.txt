@@ -6,7 +6,6 @@ pytest-dependency
 pytest-order
 pytest-timeout
 pytest-github-actions-annotate-failures
-docker
 redis
 pyyaml
 requests

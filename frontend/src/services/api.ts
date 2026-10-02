@@ -29,7 +29,8 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    responseType: 'json' | 'blob' = 'json'
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     const headers: Record<string, string> = {
@@ -49,8 +50,16 @@ class ApiClient {
         credentials: 'include', // Include cookies for auth
       })
 
+      const contentType = response.headers.get('content-type')
+      if (responseType === 'blob' && contentType?.includes('application/gzip')) {
+        return await response.blob() as T
+      }
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+
+        if (responseType === 'blob') {
+          throw new ApiError(errorData.error || errorData.message || `HTTP ${response.status}`, response.status, errorData)
+        }
 
         // If the response has a 'success' field, it's a structured response
         // even if the HTTP status is not 2xx (common with auth endpoints)
@@ -65,7 +74,9 @@ class ApiClient {
         )
       }
 
-      const contentType = response.headers.get('content-type')
+      if (responseType === 'blob') {
+        throw new ApiError('Expected a gzip backup download', response.status)
+      }
       if (contentType && contentType.includes('application/json')) {
         return await response.json()
       }
@@ -88,6 +99,14 @@ class ApiClient {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     })
+  }
+
+  async download(endpoint: string): Promise<Blob> {
+    return this.request<Blob>(endpoint, {
+      method: 'POST',
+      headers: { Accept: 'application/gzip' },
+      body: JSON.stringify({}),
+    }, 'blob')
   }
 
   async put<T>(endpoint: string, data?: any): Promise<T> {

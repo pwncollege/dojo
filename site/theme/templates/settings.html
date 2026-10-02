@@ -16,7 +16,7 @@
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
 	      <a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
-        <a class="nav-link" id="settings-reset-home-tab" data-toggle="pill" href="#reset-home" role="tab">Reset Home</a>
+        <a class="nav-link" id="settings-home-management-tab" data-toggle="pill" href="#home-management" role="tab">Home Management</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -197,14 +197,23 @@
           {% endif %}
         </div>
 
-        <div class="tab-pane fade" id="reset-home" role="tabpanel">
+        <div class="tab-pane fade" id="home-management" role="tabpanel">
           <div class="text-center">
-            <h2>Reset Home Directory</h2>
-            <p>This will stop your current challenge, save your home directory in home-backup.tar.gz, and wipe everything else in your home. Start a new challenge after the reset to continue.</p>
-            <button id="reset-home-button" class="btn btn-danger">Reset Home Directory</button>
+            <h2>Home Management</h2>
+            <p>Download a backup of your home directory, or reset it and download a backup. Files larger than 10 MB are excluded from both backups. Backups are limited to 1 GiB.</p>
+            <p>You can back up or reset your home three times per hour in total. Downloads are saved to your computer.</p>
+            <div class="mb-4">
+              <button id="backup-home-button" class="btn btn-primary">Download Backup</button>
+              <p class="mt-2">Back up your home without stopping your current challenge.</p>
+            </div>
+            <div class="mb-4">
+              <button id="reset-home-button" class="btn btn-danger">Reset Home and Download Backup</button>
+              <p class="mt-2">Reset stops your current challenge and deletes everything in your home, including files excluded from the backup. Start a new challenge afterward to continue.</p>
+            </div>
+            <p>If a download is interrupted, <a href="/pwncollege_api/v1/workspace/home_backup">download your latest backup</a> before creating another one.</p>
           </div>
           <br>
-          <div id="reset-home-results" class="form-group"></div>
+          <div id="home-management-results" class="form-group" aria-live="polite"></div>
         </div>
 
       </div>

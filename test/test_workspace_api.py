@@ -1,8 +1,10 @@
 import concurrent.futures
+import io
 import json
 import random
 import string
 import subprocess
+import tarfile
 import time
 from urllib.parse import urlparse
 
@@ -28,6 +30,8 @@ DOCKER_API = f"{DOJO_URL}/pwncollege_api/v1/docker"
 NEXT_API = f"{DOJO_URL}/pwncollege_api/v1/docker/next"
 WORKSPACE_API = f"{DOJO_URL}/pwncollege_api/v1/workspace"
 RESET_HOME_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home"
+BACKUP_HOME_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/backup_home"
+LATEST_HOME_BACKUP_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/home_backup"
 TOKENS_API = f"{DOJO_URL}/pwncollege_api/v1/workspace_tokens"
 USERS_ME_API = f"{DOJO_URL}/pwncollege_api/v1/users/me"
 
@@ -430,6 +434,8 @@ def test_docker_api_requires_a_session(example_dojo):
         ("GET /docker", anonymous.get(DOCKER_API, headers={"Content-Type": "application/json"})),
         ("DELETE /docker", anonymous.delete(DOCKER_API, json={})),
         ("POST /workspace/reset_home", anonymous.post(RESET_HOME_API, json={})),
+        ("POST /workspace/backup_home", anonymous.post(BACKUP_HOME_API, json={})),
+        ("GET /workspace/home_backup", anonymous.get(LATEST_HOME_BACKUP_API, headers={"Content-Type": "application/json"})),
     ]:
         assert response.status_code == 403, f"Expected {name} to be rejected with 403, got {response.status_code}"
         try:
@@ -480,7 +486,7 @@ def test_container_endpoints_report_no_active_challenge_without_a_container(rand
     )
 
     reset = random_user_session.post(RESET_HOME_API, json={})
-    assert reset.status_code == 200, f"Expected status code 200, but got {reset.status_code}"
+    assert reset.status_code == 409, f"Expected status code 409, but got {reset.status_code}"
     assert reset.json()["success"] is False, f"Expected the reset to fail, but got {reset.json()}"
     assert "No running container found" in reset.json()["error"], (
         f"Expected a no-container error, but got {reset.json()}"
@@ -906,7 +912,15 @@ def test_reset_home_requires_a_running_workspace(random_user_session):
     }
 
 
-def test_reset_home_restores_an_empty_writable_home(private_workspace):
+def home_archive(response):
+    assert response.status_code == 200, response.text[:500]
+    assert response.headers["Content-Type"] == "application/gzip"
+    assert "attachment" in response.headers["Content-Disposition"]
+    assert response.headers["X-Home-Operation-Status"] == "success"
+    return tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz")
+
+
+def test_reset_home_downloads_backup_and_restores_an_empty_writable_home(private_workspace):
     name, session = private_workspace["name"], private_workspace["session"]
     before = session.get(DOCKER_API).json()
     before_container = container_inspect(name)["Id"]
@@ -915,7 +929,8 @@ def test_reset_home_restores_an_empty_writable_home(private_workspace):
         "mkdir -p /home/hacker/.reset-config/nested && "
         "printf 'saved settings' > /home/hacker/.reset-config/nested/settings && "
         "ln -s .reset-config/nested/settings /home/hacker/reset-link && "
-        "touch /home/hacker/doomed-file",
+        "touch /home/hacker/doomed-file && "
+        "truncate -s 10000001 /home/hacker/large-file",
     )
     workspace_output(
         name,
@@ -923,38 +938,40 @@ def test_reset_home_restores_an_empty_writable_home(private_workspace):
         "printf 'root-owned data' > /home/hacker/.reset-root-only/private-file",
         root=True,
     )
-
     response = session.post(RESET_HOME_API, json={})
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json() == {
-        "success": True, "message": "Home directory reset successfully. Start a new challenge to continue."
-    }, (
-        f"Unexpected reset response: {response.json()}"
-    )
-
+    with home_archive(response) as archive:
+        assert archive.extractfile("home/hacker/.reset-config/nested/settings").read() == b"saved settings"
+        assert archive.getmember("home/hacker/reset-link").issym()
+        assert archive.getmember("home/hacker/doomed-file").isfile()
+        assert archive.extractfile("home/hacker/.reset-root-only/private-file").read() == b"root-owned data"
+        assert "home/hacker/large-file" not in archive.getnames()
+    assert int(response.headers["X-Home-Backup-Skipped-Files"]) >= 1
     assert not container_exists(name), "Expected the reset to stop and remove the workspace"
     assert session.get(DOCKER_API).json() == {"success": False, "error": "No active challenge"}
+    latest = session.get(LATEST_HOME_BACKUP_API)
+    assert latest.content == response.content, "Expected interrupted downloads to be retryable without a running challenge"
     start_challenge(private_workspace["dojo"], "solo", "only", session=session)
     assert container_inspect(name)["Id"] != before_container
-    assert workspace_exec(name, "[ ! -e /home/hacker/doomed-file ]").returncode == 0, (
-        "Expected the reset to wipe the home directory"
-    )
-    assert workspace_exec(name, "[ -f /home/hacker/home-backup.tar.gz ]").returncode == 0, (
-        "Expected the reset to leave a backup of the old home directory"
-    )
-    assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n' | sort") == ".config\nhome-backup.tar.gz"
+    assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n'") == ".config"
     assert session.get(DOCKER_API).json() == before
-    workspace_output(name, "mkdir /tmp/reset-restore && tar -xzf /home/hacker/home-backup.tar.gz -C /tmp/reset-restore")
-    assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/.reset-config/nested/settings") == "saved settings"
-    assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/reset-link") == "saved settings"
-    assert workspace_exec(name, "test -f /tmp/reset-restore/home/hacker/doomed-file").returncode == 0
-    assert workspace_output(name, "tar -xOf /home/hacker/home-backup.tar.gz home/hacker/.reset-root-only/private-file") == "root-owned data"
-    assert workspace_output(name, "stat -c %U:%G /home/hacker") == "hacker:hacker", (
-        "Expected the reset home directory to stay owned by the hacker user"
-    )
-    assert workspace_exec(name, "touch /home/hacker/after-reset").returncode == 0, (
-        "Expected the hacker user to still be able to write to their home directory after a reset"
-    )
+    assert workspace_output(name, "stat -c %U:%G /home/hacker") == "hacker:hacker"
+    assert workspace_exec(name, "touch /home/hacker/after-reset").returncode == 0
+
+
+def test_backup_home_downloads_without_stopping_or_changing_workspace(random_user, example_dojo):
+    name, session = random_user
+    start_challenge(example_dojo, "hello", "apple", session=session)
+    before_container = container_inspect(name)["Id"]
+    workspace_output(name, "printf 'keep this' > /home/hacker/saved-file && truncate -s 10000001 /home/hacker/large-file")
+    response = session.post(BACKUP_HOME_API, json={})
+    with home_archive(response) as archive:
+        assert archive.extractfile("home/hacker/saved-file").read() == b"keep this"
+        assert "home/hacker/large-file" not in archive.getnames()
+    assert container_inspect(name)["Id"] == before_container
+    assert container_inspect(name)["State"]["Running"]
+    assert workspace_output(name, "cat /home/hacker/saved-file") == "keep this"
+    assert workspace_output(name, "stat -c %s /home/hacker/large-file") == "10000001"
+    assert workspace_exec(name, "test ! -e /home/hacker/home-backup.tar.gz").returncode == 0
 
 
 def test_reset_home_stops_a_workspace_writing_desktop_configuration(
@@ -976,16 +993,35 @@ def test_reset_home_stops_a_workspace_writing_desktop_configuration(
         time.sleep(0.05)
     before_container = container_inspect(name)["Id"]
     response = random_user_session.post(RESET_HOME_API, json={})
-    assert response.status_code == 200 and response.json()["success"], response.text
+    with home_archive(response) as archive:
+        assert archive.getmember("home/hacker/reset-original").isfile()
     assert not container_exists(name), "Expected the reset to terminate the desktop writer's workspace"
     start_challenge(example_dojo, "hello", "apple", session=random_user_session)
     assert container_inspect(name)["Id"] != before_container
     assert workspace_exec(name, "test ! -e /home/hacker/reset-original").returncode == 0
     assert workspace_exec(name, "test ! -e /home/hacker/.config/xfce4/reset-writer").returncode == 0
     assert workspace_exec(name, "test ! -e /tmp/reset-home-writer-ready").returncode == 0
-    assert workspace_exec(
-        name, "tar -tzf /home/hacker/home-backup.tar.gz home/hacker/reset-original"
-    ).returncode == 0
+    assert workspace_exec(name, "test ! -e /home/hacker/home-backup.tar.gz").returncode == 0
+
+
+def test_home_operations_share_a_per_user_three_per_hour_limit(random_user_session):
+    for endpoint in [BACKUP_HOME_API, RESET_HOME_API, BACKUP_HOME_API]:
+        assert random_user_session.post(endpoint, json={}).status_code == 409
+    response = random_user_session.post(RESET_HOME_API, json={})
+    assert response.status_code == 429
+    assert 0 < int(response.headers["Retry-After"]) <= 3600
+    assert "three times per hour" in response.json()["error"]
+    assert random_user_session.get(LATEST_HOME_BACKUP_API).status_code == 404
+
+
+def test_settings_exposes_home_management_actions(random_user_session):
+    response = random_user_session.get(f"{DOJO_URL}/settings")
+    assert response.status_code == 200
+    assert "Home Management" in response.text
+    assert 'id="backup-home-button"' in response.text
+    assert 'id="reset-home-button"' in response.text
+    assert "Files larger than 10 MB" in response.text
+    assert "three times per hour" in response.text
 
 
 def test_progression_lock_applies_to_members_but_not_dojo_admins(course_workspace):

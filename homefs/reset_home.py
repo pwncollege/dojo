@@ -1,12 +1,18 @@
+import errno
 import fcntl
 import gzip
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tarfile
-import tempfile
+
+
+MAX_FILE_SIZE = 10_000_000
+MAX_ARCHIVE_SIZE = 1024 * 1024 * 1024
 
 
 class HomeResetFailure(Exception):
@@ -16,79 +22,127 @@ class HomeResetFailure(Exception):
         self.backup = backup
 
 
+class LimitedWriter:
+    def __init__(self, stream):
+        self.stream = stream
+        self.size = 0
+
+    def write(self, data):
+        if self.size + len(data) > MAX_ARCHIVE_SIZE:
+            raise OSError(errno.EFBIG, "Home backup exceeds the 1 GiB archive limit")
+        written = self.stream.write(data)
+        self.size += written
+        return written
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
 def verify_backup(path):
     with gzip.open(path, "rb") as stream:
-        while stream.read(1024 * 1024):
-            pass
-    with tarfile.open(path, "r:gz") as archive:
-        archive.getmembers()
+        size = 0
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_ARCHIVE_SIZE:
+                raise OSError(errno.EFBIG, "Home backup exceeds the 1 GiB archive limit")
+    with tarfile.open(path, "r|gz") as archive:
+        for member in archive:
+            archive.members.clear()
 
 
-def reset_home(volume_path):
+@contextmanager
+def locked_home(volume_path, *, require_active=True):
     home = volume_path / "active"
-    if home.is_symlink() or not home.is_dir():
-        raise HomeResetFailure("Home volume is not active", phase="backup")
-
+    if not volume_path.is_dir():
+        raise HomeResetFailure("Home volume is not active", phase="backup" if require_active else "missing")
     with (volume_path / ".active.lock").open("a+b") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise HomeResetFailure("Home volume is busy", phase="lock") from error
+        if require_active and (home.is_symlink() or not home.is_dir()):
+            raise HomeResetFailure("Home volume is not active", phase="backup")
+        yield home
 
-        backups = volume_path / "reset-backups"
-        backups.mkdir(mode=0o700, exist_ok=True)
-        backup_fd, partial_name = tempfile.mkstemp(prefix="home-backup-", suffix=".partial", dir=backups)
-        partial = Path(partial_name)
-        backup = partial.with_suffix(".tar.gz")
-        phase = "backup"
-        verified = False
-        restored = None
+
+def archive_path(volume_path):
+    return volume_path / "home-backups" / "backup.tar.gz"
+
+
+@contextmanager
+def backup_source(home, directory):
+    snapshot = directory / "source"
+    if snapshot.exists():
+        subprocess.run(["btrfs", "subvolume", "delete", str(snapshot)], check=True, capture_output=True)
+    subprocess.run(["btrfs", "subvolume", "snapshot", "-r", str(home), str(snapshot)], check=True, capture_output=True)
+    try:
+        yield snapshot
+    finally:
+        subprocess.run(["btrfs", "subvolume", "delete", str(snapshot)], check=True, capture_output=True)
+
+
+def backup_home(volume_path):
+    with locked_home(volume_path) as home:
+        backup = archive_path(volume_path)
+        backup.parent.mkdir(mode=0o700, exist_ok=True)
+        partial = backup.with_suffix(".partial")
+        skipped = 0
+
+        def include(member):
+            nonlocal skipped
+            if (member.isfile() or member.islnk()) and (source / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
+                skipped += 1
+                return None
+            return member
+
         try:
-            with os.fdopen(backup_fd, "wb") as stream:
-                with tarfile.open(fileobj=stream, mode="w:gz", compresslevel=6) as archive:
-                    archive.add(home, arcname="home/hacker")
-                stream.flush()
-                os.fsync(stream.fileno())
+            partial.unlink(missing_ok=True)
+            with backup_source(home, backup.parent) as source:
+                with partial.open("xb", buffering=0) as stream:
+                    os.chmod(partial, 0o600)
+                    with gzip.GzipFile(fileobj=LimitedWriter(stream), mode="wb", compresslevel=6) as compressed:
+                        with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
+                            archive.add(source, arcname="home/hacker", filter=include)
+                    os.fsync(stream.fileno())
             verify_backup(partial)
-            partial.rename(backup)
-            sync_directory(backups)
-            verified = True
-            print(json.dumps({"event": "backup_ready", "backup": str(backup)}), flush=True)
+            partial.replace(backup)
+            sync_directory(backup.parent)
+        except Exception as error:
+            try:
+                partial.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                print(json.dumps({"event": "cleanup_failed", "error": str(cleanup_error)}), file=sys.stderr)
+            raise HomeResetFailure(str(error), phase="backup") from error
+        return {"backup": str(backup), "size": backup.stat().st_size, "skipped": skipped}
 
-            phase = "delete"
+
+def reset_home(volume_path):
+    with locked_home(volume_path) as home:
+        backup = archive_path(volume_path)
+        try:
+            verify_backup(backup)
+        except Exception as error:
+            raise HomeResetFailure(str(error), phase="backup") from error
+        try:
             for entry in home.iterdir():
                 if entry.is_dir() and not entry.is_symlink():
                     shutil.rmtree(entry)
                 else:
                     entry.unlink()
-
-            phase = "restore"
             os.chown(home, 1000, 1000)
             os.chmod(home, 0o755)
-            restore_fd, restored_name = tempfile.mkstemp(prefix=".home-backup-", dir=home)
-            restored = Path(restored_name)
-            with os.fdopen(restore_fd, "wb") as destination, backup.open("rb") as source:
-                shutil.copyfileobj(source, destination, length=1024 * 1024)
-                destination.flush()
-                os.fchown(destination.fileno(), 1000, 1000)
-                os.fsync(destination.fileno())
-            restored.replace(home / "home-backup.tar.gz")
             sync_directory(home)
         except Exception as error:
-            for temporary in (partial, restored):
-                if temporary is None:
-                    continue
-                try:
-                    temporary.unlink(missing_ok=True)
-                except OSError as cleanup_error:
-                    print(json.dumps({"event": "cleanup_failed", "path": str(temporary),
-                                      "error": str(cleanup_error)}), file=sys.stderr)
-            raise HomeResetFailure(str(error), phase=phase, backup=backup if verified else None) from error
-        try:
-            backup.unlink()
-            sync_directory(backups)
-        except OSError as error:
-            print(json.dumps({"event": "cleanup_failed", "backup": str(backup), "error": str(error)}), file=sys.stderr)
+            raise HomeResetFailure(str(error), phase="reset", backup=backup) from error
+        return {}
+
+
+def latest_backup(volume_path):
+    with locked_home(volume_path, require_active=False):
+        backup = archive_path(volume_path)
+        if not backup.is_file():
+            raise HomeResetFailure("No home backup is available", phase="missing")
+        return {"backup": str(backup), "size": backup.stat().st_size}
 
 
 def sync_directory(path):
@@ -101,15 +155,18 @@ def sync_directory(path):
 
 def main():
     try:
-        if len(sys.argv) != 2 or not sys.argv[1].isascii() or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
+        if len(sys.argv) != 3 or not sys.argv[1].isascii() or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
             raise HomeResetFailure("Invalid user ID", phase="backup")
+        actions = {"backup": backup_home, "reset": reset_home, "latest": latest_backup}
+        if sys.argv[2] not in actions:
+            raise HomeResetFailure("Invalid home operation", phase="backup")
         volume_path = Path(os.environ.get("STORAGE_ROOT", "/data")) / str(int(sys.argv[1]))
-        reset_home(volume_path)
+        detail = actions[sys.argv[2]](volume_path)
     except HomeResetFailure as error:
         print(json.dumps({"event": "failed", "phase": error.phase, "error": str(error),
                           "backup": str(error.backup) if error.backup else None}), file=sys.stderr)
         return 1
-    print(json.dumps({"event": "complete"}))
+    print(json.dumps({"event": "complete", **detail}))
     return 0
 
 

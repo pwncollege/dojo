@@ -8,7 +8,8 @@ from ...utils.user import get_current_user, is_admin
 from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node
-from ...utils.workspace import start_on_demand_service, reset_home, HomeResetError
+from ...utils.workspace import start_on_demand_service, manage_home, HomeResetError
+from ...utils.home_reset import home_download_response
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -125,11 +126,26 @@ class view_desktop(Resource):
 class ResetHome(Resource):
     @authed_only
     def post(self):
-        user = get_current_user()
+        return home_download("reset")
 
-        try:
-            reset_home(user.id)
-        except HomeResetError as error:
-            return {"success": False, "error": str(error)}, error.status
 
-        return {"success": True, "message": "Home directory reset successfully. Start a new challenge to continue."}
+@workspace_namespace.route("/backup_home")
+class BackupHome(Resource):
+    @authed_only
+    def post(self):
+        return home_download("backup")
+
+
+@workspace_namespace.route("/home_backup")
+class LatestHomeBackup(Resource):
+    @authed_only
+    def get(self):
+        return home_download("latest")
+
+
+def home_download(action):
+    try:
+        return home_download_response(manage_home(get_current_user().id, action))
+    except HomeResetError as error:
+        headers = {"Retry-After": str(error.retry_after)} if error.retry_after else {}
+        return {"success": False, "error": str(error)}, error.status, headers

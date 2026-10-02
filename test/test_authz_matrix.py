@@ -349,6 +349,7 @@ def test_csrf_required_on_mutating_dojo_endpoints(authz_dojo, random_user, admin
         ("DELETE ssh_key", session.delete(f"{api}/ssh_key", json={"ssh_key": "ssh-rsa AAAA"}, headers=NO_CSRF)),
         ("POST workspace_tokens", session.post(f"{api}/workspace_tokens", json={}, headers=NO_CSRF)),
         ("POST reset_home", session.post(f"{api}/workspace/reset_home", json={}, headers=NO_CSRF)),
+        ("POST backup_home", session.post(f"{api}/workspace/backup_home", json={}, headers=NO_CSRF)),
         ("DELETE discord", session.delete(f"{api}/discord", json={}, headers=NO_CSRF)),
         ("PATCH course identity", session.patch(f"{DOJO_URL}/dojo/{authz_dojo}/course/identity", json={"identity": "x"}, headers=NO_CSRF)),
     ]
