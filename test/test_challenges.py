@@ -2,7 +2,7 @@ import subprocess
 import json
 import re
 import uuid
-from urllib.parse import quote, urlencode
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import pytest
 import yaml
@@ -151,7 +151,8 @@ def test_challenge_access_code(admin_session, random_user_session, example_dojo)
                                         params={**data, "access_code": code, "fullscreen": "true"})
     assert workspace.status_code == 200
     redirect = json.loads(re.search(r"window.location.replace\((.+)\);", workspace.text).group(1))
-    assert redirect == f"/workspace/terminal?{urlencode({'fullscreen': 'true', 'access_code': code})}"
+    assert urlparse(redirect).path == "/workspace/terminal"
+    assert parse_qs(urlparse(redirect).query) == {"fullscreen": ["true"], "access_code": [code]}
     for practice in (False, True):
         response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker",
                                             json={**data, "practice": practice, "access_code": code})
