@@ -166,7 +166,7 @@ DOJO_SPEC = Schema({
 
         Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
     }],
-    Optional("pages", default=[]): [str],
+    Optional("pages", default=[]): Or([str], {Optional(str): str}),
     Optional("files", default=[]): [Or(
         {
             "type": "download",
@@ -595,8 +595,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
         if "custom_js" in dojo.permissions and custom_js_path.exists():
             dojo.custom_js = custom_js_path.read_text()
 
-        if dojo_data.get("pages"):
-            dojo.pages = dojo_data["pages"]
+    if "pages" in data:
+        dojo.pages = dojo_data["pages"]
 
     return dojo
 

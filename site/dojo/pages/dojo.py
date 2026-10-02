@@ -456,6 +456,9 @@ def view_module(dojo, module, scroll_to_challenge=None):
 
 
 def view_page(dojo, page):
+    if isinstance(dojo.pages, dict):
+        content = render_markdown(dojo.pages[page])
+        return render_template("markdown.html", dojo=dojo, content=content)
     file_path = resolve_dojo_path(dojo, page)
     if file_path.is_file():
         assert dojo.privileged or dojo.official

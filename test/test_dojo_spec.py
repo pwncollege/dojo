@@ -155,6 +155,38 @@ def test_unknown_spec_keys_are_rejected(admin_session):
         assert dojos_named(spec["id"]) == 0, f"Rejected spec created a dojos row for {spec['id']}"
 
 
+def test_inline_pages_replace_file_pages_and_clear_via_json_update(admin_session):
+    dojo_id = spec_id("pages")
+    spec = {
+        "id": dojo_id,
+        "type": "public",
+        "pages": ["notes", "removed"],
+        "files": [text_file("notes.md", "Filesystem notes"),
+                  text_file("removed.md", "Filesystem removed")],
+    }
+    dojo = create_dojo_spec(admin_session, spec)
+    assert "Filesystem notes" in admin_session.get(f"{DOJO_URL}/{dojo}/notes").text
+    endpoint = f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update"
+    payload = {"id": dojo_id, "type": "public", "pages": {"notes": "Inline notes"}}
+    updated = admin_session.post(endpoint, json=payload)
+    assert updated.status_code == 200 and updated.json()["success"], updated.text
+    page = admin_session.get(f"{DOJO_URL}/{dojo}/notes")
+    assert page.status_code == 200 and "Inline notes" in page.text
+    assert "Filesystem notes" not in page.text
+    assert admin_session.get(f"{DOJO_URL}/{dojo}/removed").status_code == 404
+    assert dojo_data(dojo)["pages"] == payload["pages"]
+
+    rejected = admin_session.post(endpoint, json=dict(payload, pages={"notes": 123}))
+    assert rejected.status_code == 400
+    assert dojo_data(dojo)["pages"] == payload["pages"]
+
+    omitted = admin_session.post(endpoint, json={"id": dojo_id, "type": "public"})
+    assert omitted.status_code == 200 and dojo_data(dojo)["pages"] == payload["pages"]
+    cleared = admin_session.post(endpoint, json=dict(payload, pages={}))
+    assert cleared.status_code == 200 and dojo_data(dojo)["pages"] == {}
+    assert admin_session.get(f"{DOJO_URL}/{dojo}/notes").status_code == 404
+
+
 def test_auxiliary_is_accepted_and_not_persisted(admin_session):
     dojo_id = spec_id("aux")
     dojo = create_dojo_spec(admin_session, {
