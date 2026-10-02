@@ -10,7 +10,6 @@ import socket
 import subprocess
 import tarfile
 from types import SimpleNamespace
-from contextlib import nullcontext
 from unittest.mock import Mock
 
 import docker
@@ -36,12 +35,11 @@ orchestration = load_module("home_reset_orchestration", "dojo_plugin/utils/home_
 
 
 @pytest.fixture
-def volume(tmp_path, monkeypatch):
+def volume(tmp_path):
     path = tmp_path / "42"
     home = path / "active"
     home.mkdir(parents=True)
     (home / "saved-file").write_text("saved data")
-    monkeypatch.setattr(storage, "backup_source", lambda home, directory: nullcontext(home))
     return path
 
 
@@ -209,19 +207,6 @@ def test_latest_backup_is_missing_for_a_user_without_storage(tmp_path):
     assert failure.value.phase == "missing"
 
 
-def test_backup_source_uses_and_removes_a_readonly_btrfs_snapshot(tmp_path, monkeypatch):
-    run = Mock()
-    monkeypatch.setattr(storage.subprocess, "run", run)
-    with pytest.raises(RuntimeError):
-        with storage.backup_source(tmp_path / "active", tmp_path) as source:
-            assert source == tmp_path / "source"
-            raise RuntimeError("archive failed")
-    assert run.call_args_list[0].args[0] == [
-        "btrfs", "subvolume", "snapshot", "-r", str(tmp_path / "active"), str(tmp_path / "source")
-    ]
-    assert run.call_args_list[1].args[0] == ["btrfs", "subvolume", "delete", str(tmp_path / "source")]
-
-
 @pytest.fixture
 def clients():
     payload = io.BytesIO()
@@ -273,12 +258,22 @@ def test_reset_stops_under_lock_and_copies_backup_before_deleting_home(clients):
 
 
 @pytest.mark.parametrize("action", ["backup", "latest"])
-def test_non_destructive_download_keeps_workspace_running(clients, action):
+def test_backup_stops_before_archiving_and_latest_download_leaves_workspace_alone(clients, action):
     client, container, homefs, lock = clients
+    original = homefs.exec_run.return_value
+    def run(command, **kwargs):
+        lock.release.assert_not_called()
+        if action == "backup":
+            container.stop.assert_called_once_with(timeout=10)
+            container.wait.assert_called_once_with(condition="removed", timeout=30)
+        else:
+            container.stop.assert_not_called()
+        return original
+    homefs.exec_run.side_effect = run
     archive = orchestration.manage_home_directory(client, 42, lock, action=action)
     assert backup_contents(archive.file) == {"home/hacker/saved-file": b"saved data"}
     archive.file.close()
-    container.stop.assert_not_called()
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == [action]
     container.exec_run.assert_not_called()
     lock.release.assert_called_once()
 
@@ -293,12 +288,13 @@ def test_competing_workspace_operation_prevents_reset(clients):
     lock.release.assert_not_called()
 
 
+@pytest.mark.parametrize("action", ["backup", "reset"])
 @pytest.mark.parametrize("status", ["exited", "paused"])
-def test_inactive_workspace_is_not_reset(clients, status):
+def test_inactive_workspace_prevents_home_management(clients, status, action):
     client, container, homefs, lock = clients
     container.status = status
     with pytest.raises(orchestration.HomeResetError) as failure:
-        orchestration.manage_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock, action=action)
     assert failure.value.status == 409
     container.stop.assert_not_called()
     homefs.exec_run.assert_not_called()

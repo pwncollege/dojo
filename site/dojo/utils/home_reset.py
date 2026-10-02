@@ -46,7 +46,7 @@ class HomeArchive:
         self.size = size
         self.skipped = skipped
         self.status = "success"
-        self.message = "Home backup downloaded."
+        self.message = "Home backup downloaded. Start a new challenge to continue."
 
 
 class DockerArchiveReader(io.RawIOBase):
@@ -199,7 +199,6 @@ def manage_home_directory(docker_client, user_id, lock, *, action="reset"):
                 raise HomeResetError("No running container found. Please start a container and try again.", 409) from error
             except (docker.errors.DockerException, requests.RequestException) as error:
                 raise HomeResetError("Workspace is unavailable. Please try again.", 503) from error
-        if action == "reset":
             try:
                 container.stop(timeout=10)
                 # Workspaces use auto_remove; wait until their mounts have been released.

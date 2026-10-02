@@ -6,7 +6,6 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tarfile
 
@@ -69,18 +68,6 @@ def archive_path(volume_path):
     return volume_path / "home-backups" / "backup.tar.gz"
 
 
-@contextmanager
-def backup_source(home, directory):
-    snapshot = directory / "source"
-    if snapshot.exists():
-        subprocess.run(["btrfs", "subvolume", "delete", str(snapshot)], check=True, capture_output=True)
-    subprocess.run(["btrfs", "subvolume", "snapshot", "-r", str(home), str(snapshot)], check=True, capture_output=True)
-    try:
-        yield snapshot
-    finally:
-        subprocess.run(["btrfs", "subvolume", "delete", str(snapshot)], check=True, capture_output=True)
-
-
 def backup_home(volume_path):
     with locked_home(volume_path) as home:
         backup = archive_path(volume_path)
@@ -90,20 +77,19 @@ def backup_home(volume_path):
 
         def include(member):
             nonlocal skipped
-            if (member.isfile() or member.islnk()) and (source / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
+            if (member.isfile() or member.islnk()) and (home / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
                 skipped += 1
                 return None
             return member
 
         try:
             partial.unlink(missing_ok=True)
-            with backup_source(home, backup.parent) as source:
-                with partial.open("xb", buffering=0) as stream:
-                    os.chmod(partial, 0o600)
-                    with gzip.GzipFile(fileobj=LimitedWriter(stream), mode="wb", compresslevel=6) as compressed:
-                        with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
-                            archive.add(source, arcname="home/hacker", filter=include)
-                    os.fsync(stream.fileno())
+            with partial.open("xb", buffering=0) as stream:
+                os.chmod(partial, 0o600)
+                with gzip.GzipFile(fileobj=LimitedWriter(stream), mode="wb", compresslevel=6) as compressed:
+                    with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
+                        archive.add(home, arcname="home/hacker", filter=include)
+                os.fsync(stream.fileno())
             verify_backup(partial)
             partial.replace(backup)
             sync_directory(backup.parent)

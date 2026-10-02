@@ -958,7 +958,7 @@ def test_reset_home_downloads_backup_and_restores_an_empty_writable_home(private
     assert workspace_exec(name, "touch /home/hacker/after-reset").returncode == 0
 
 
-def test_backup_home_downloads_without_stopping_or_changing_workspace(random_user, example_dojo):
+def test_backup_home_stops_workspace_and_preserves_home_files(random_user, example_dojo):
     name, session = random_user
     start_challenge(example_dojo, "hello", "apple", session=session)
     before_container = container_inspect(name)["Id"]
@@ -967,8 +967,9 @@ def test_backup_home_downloads_without_stopping_or_changing_workspace(random_use
     with home_archive(response) as archive:
         assert archive.extractfile("home/hacker/saved-file").read() == b"keep this"
         assert "home/hacker/large-file" not in archive.getnames()
-    assert container_inspect(name)["Id"] == before_container
-    assert container_inspect(name)["State"]["Running"]
+    assert not container_exists(name)
+    start_challenge(example_dojo, "hello", "apple", session=session)
+    assert container_inspect(name)["Id"] != before_container
     assert workspace_output(name, "cat /home/hacker/saved-file") == "keep this"
     assert workspace_output(name, "stat -c %s /home/hacker/large-file") == "10000001"
     assert workspace_exec(name, "test ! -e /home/hacker/home-backup.tar.gz").returncode == 0
