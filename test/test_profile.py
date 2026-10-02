@@ -108,7 +108,8 @@ def test_admin_profile_patch_skips_confirmation(admin_session):
         assert db_sql("SELECT email FROM users WHERE name = 'admin'").strip() == original_email
 
 
-def test_profile_name_changes_disabled(random_user):
+@pytest.mark.parametrize("legacy_setting", [False, 0])
+def test_profile_name_changes_ignore_legacy_setting(random_user, legacy_setting):
     name, session = random_user
     user_id = get_user_id(name)
     new_name = rand_name()
@@ -118,10 +119,14 @@ def test_profile_name_changes_disabled(random_user):
         from dojo.api.v1 import user as user_api
 
         real_get_config = models.get_config
-        name_changes_disabled = lambda key, *args, **kwargs: False if key == "name_changes" else real_get_config(key, *args, **kwargs)
-        with patch.object(user_api, "get_config", side_effect=name_changes_disabled):
+        legacy_name_changes = lambda key, *args, **kwargs: {legacy_setting!r} if key == "name_changes" else real_get_config(key, *args, **kwargs)
+        with patch.object(user_api, "get_config", side_effect=legacy_name_changes):
             response = client.patch("/pwncollege_api/v1/users/me", json={{"name": {new_name!r}}})
-        assert response.status_code == 400, response.get_data(as_text=True)
-        assert response.get_json()["errors"] == {{"name": ["Name changes are disabled"]}}, response.get_json()
+        assert response.status_code == 200, response.get_data(as_text=True)
+        assert response.get_json()["data"]["name"] == {new_name!r}, response.get_json()
     """)
-    assert user_column(user_id, "name") == name
+    try:
+        assert user_column(user_id, "name") == new_name
+    finally:
+        response = patch_me(session, name=name)
+        assert response.status_code == 200, response.text

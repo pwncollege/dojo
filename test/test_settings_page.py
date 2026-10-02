@@ -38,6 +38,13 @@ def test_settings_profile_form_updates_and_reports_errors(random_user_browser, r
     WebDriverWait(browser, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#results .alert-success")))
     assert db_sql(f"SELECT affiliation FROM users WHERE id = {user_id}").strip() == affiliation
 
+    affiliation_field.clear()
+    browser.find_element(By.CSS_SELECTOR, "#user-profile-form #_submit").click()
+    WebDriverWait(browser, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#results .alert-success")))
+    assert db_sql(f"SELECT affiliation FROM users WHERE id = {user_id}").strip() == ""
+    browser.refresh()
+    assert browser.find_element(By.ID, "affiliation").get_attribute("value") == ""
+
     password_hash = db_sql(f"SELECT password FROM users WHERE id = {user_id}").strip()
     browser.find_element(By.ID, "password").send_keys(f"new-{random_user_name}")
     browser.find_element(By.ID, "confirm").send_keys(f"wrong-{random_user_name}")

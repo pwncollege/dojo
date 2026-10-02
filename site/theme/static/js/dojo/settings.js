@@ -125,12 +125,11 @@ $(() => {
 
 $(() => {
     const profile = $("#user-profile-form");
-    const initial = profile.serializeJSON();
     profile.submit(event => {
         event.preventDefault();
         const results = $("#results").empty();
         profile.find(".is-invalid").removeClass("is-invalid");
-        const params = Object.fromEntries(Object.entries(profile.serializeJSON()).filter(([name, value]) => value !== "" || initial[name] !== ""));
+        const params = profile.serializeJSON();
         Dojo.fetch("/pwncollege_api/v1/users/me", {method: "PATCH", body: JSON.stringify(params)}).then(response => response.json()).then(result => {
             if (result.success) {
                 results.html(success_template).find("#message").text("Your profile has been updated");

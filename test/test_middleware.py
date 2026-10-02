@@ -468,6 +468,12 @@ def test_bootstrap_is_idempotent():
     original_hash = admin_password_hash()
     assert original_hash, "the bootstrap admin must exist"
 
+    indexes = db_sql("SELECT indexdef FROM pg_indexes WHERE tablename = 'submissions' "
+                     "AND indexname = 'solves_challenge_id_user_id_key'").strip()
+    assert "CREATE UNIQUE INDEX" in indexes, indexes
+    assert "(challenge_id, user_id)" in indexes, indexes
+    assert "WHERE" in indexes and "'correct'" in indexes and "user_id IS NOT NULL" in indexes, indexes
+
     for _ in range(2):
         run_bootstrap()
         assert int(db_sql("SELECT count(*) FROM users WHERE name='admin'")) == 1

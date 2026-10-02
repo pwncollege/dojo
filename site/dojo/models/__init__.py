@@ -102,6 +102,14 @@ class Flags(db.Model):
 
 class Submissions(db.Model):
     __tablename__ = "submissions"
+    __table_args__ = (
+        db.Index(
+            "solves_challenge_id_user_id_key",
+            "challenge_id", "user_id",
+            unique=True,
+            postgresql_where=db.text("type = 'correct' AND user_id IS NOT NULL"),
+        ),
+    )
     id = db.Column(db.Integer, primary_key=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))

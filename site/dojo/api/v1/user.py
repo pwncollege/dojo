@@ -131,8 +131,6 @@ def validate_self_patch(user, data):
             user.verified = False
     name = data.get("name")
     if name is not None and name.strip() != user.name:
-        if not is_admin() and get_config("name_changes", default=True) is False:
-            return {"name": ["Name changes are disabled"]}
         if Users.query.filter_by(name=name.strip()).first():
             return {"name": ["User name has already been taken"]}
     if data.get("password") and not is_admin():
