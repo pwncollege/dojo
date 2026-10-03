@@ -12,25 +12,34 @@ from reset_home import backup_home, reset_home
 volume_server = Blueprint("volume", __name__)
 
 
-@volume_server.route("/<int(min=1):user_id>/<any(backup,reset):action>", methods=["POST"])
-def manage_home_volume(user_id, action):
+@volume_server.route("/<int(min=1):user_id>/backup", methods=["POST"])
+def backup_home_volume(user_id):
     try:
-        volume_path = STORAGE_ROOT / str(user_id)
-        if action == "reset":
-            reset_home(volume_path)
-            return {"success": True}
-        stream = backup_home(volume_path)
+        stream = backup_home(STORAGE_ROOT / str(user_id))
         first = next(stream)
     except OSError as error:
-        current_app.logger.exception("Home operation failed")
-        status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(error.errno, 500)
-        message = {409: "Home storage is busy. Please try again.",
-                   404: "No home directory found. Start a challenge and try again.",
-                   413: "The backup exceeds 1 GiB. Remove some files and try again."}
-        return {"success": False, "error": message.get(status, "Could not complete the home operation. Please try again.")}, status
+        return home_error_response(error)
     response = Response(chain((first,), stream), mimetype="application/gzip")
     response.call_on_close(stream.close)
     return response
+
+
+@volume_server.route("/<int(min=1):user_id>/reset", methods=["POST"])
+def reset_home_volume(user_id):
+    try:
+        reset_home(STORAGE_ROOT / str(user_id))
+    except OSError as error:
+        return home_error_response(error)
+    return {"success": True}
+
+
+def home_error_response(error):
+    current_app.logger.exception("Home operation failed")
+    status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(error.errno, 500)
+    message = {409: "Home storage is busy. Please try again.",
+               404: "No home directory found. Start a challenge and try again.",
+               413: "The backup exceeds 1 GiB. Remove some files and try again."}
+    return {"success": False, "error": message.get(status, "Could not complete the home operation. Please try again.")}, status
 
 
 @volume_server.route("/<volume:volume>", methods=["GET"])

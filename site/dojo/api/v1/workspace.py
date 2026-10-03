@@ -1,6 +1,5 @@
 import hmac
 import os
-from contextlib import closing
 from itertools import chain
 
 import redis
@@ -12,7 +11,7 @@ from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node, user_docker_client
 from ...utils.workspace import start_on_demand_service
-from ...utils.home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, manage_home_directory
+from ...utils.home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, backup_home_directory, reset_home_directory
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -129,39 +128,44 @@ class view_desktop(Resource):
 class ResetHome(Resource):
     @authed_only
     def post(self):
-        return home_operation("reset")
+        try:
+            user, lock, homefs_url = home_request()
+            reset_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url)
+            return {"success": True, "message": "Home reset. Start a new challenge to continue."}
+        except HomeResetError as error:
+            return home_error_response(error)
 
 
 @workspace_namespace.route("/backup_home")
 class BackupHome(Resource):
     @authed_only
     def post(self):
-        return home_operation("backup")
+        try:
+            user, lock, homefs_url = home_request()
+            stream = backup_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url)
+            first = next(stream)
+            response = Response(chain((first,), stream), mimetype="application/gzip", headers={
+                "Content-Disposition": "attachment; filename=home-backup.tar.gz",
+                "Cache-Control": "no-store",
+                "X-Accel-Buffering": "no",
+            })
+            response.call_on_close(stream.close)
+            return response
+        except HomeResetError as error:
+            return home_error_response(error)
 
 
-def home_operation(action):
-    try:
-        user = get_current_user()
-        redis_client = redis.from_url(current_app.config["REDIS_URL"])
-        check_home_rate_limit(redis_client, user.id)
-        lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
-                                 blocking_timeout=0, raise_on_release_error=False)
-        node = user_node(user)
-        homefs_url = f"http://192.168.42.{node + 1}:4201" if node is not None else "http://homefs:4201"
-        stream = manage_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url, action=action)
-        if action == "reset":
-            with closing(stream):
-                for _ in stream:
-                    pass
-            return {"success": True, "message": "Home reset. Start a new challenge to continue."}
-        first = next(stream)
-        response = Response(chain((first,), stream), mimetype="application/gzip", headers={
-            "Content-Disposition": "attachment; filename=home-backup.tar.gz",
-            "Cache-Control": "no-store",
-            "X-Accel-Buffering": "no",
-        })
-        response.call_on_close(stream.close)
-        return response
-    except HomeResetError as error:
-        headers = {"Retry-After": str(error.retry_after)} if error.retry_after else {}
-        return {"success": False, "error": str(error)}, error.status, headers
+def home_request():
+    user = get_current_user()
+    redis_client = redis.from_url(current_app.config["REDIS_URL"])
+    check_home_rate_limit(redis_client, user.id)
+    lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
+                             blocking_timeout=0, raise_on_release_error=False)
+    node = user_node(user)
+    homefs_url = f"http://192.168.42.{node + 1}:4201" if node is not None else "http://homefs:4201"
+    return user, lock, homefs_url
+
+
+def home_error_response(error):
+    headers = {"Retry-After": str(error.retry_after)} if error.retry_after else {}
+    return {"success": False, "error": str(error)}, error.status, headers

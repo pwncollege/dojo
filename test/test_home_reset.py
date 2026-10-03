@@ -204,7 +204,7 @@ def without_workspace(client):
 
 def test_backup_streams_and_reset_takes_a_separate_lock(clients):
     client, container, response, lock, payload, post = clients
-    stream = orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")
+    stream = orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
     assert next(stream) == payload[:4]
     container.stop.assert_called_once_with(timeout=10)
     container.wait.assert_called_once_with(condition="removed", timeout=30)
@@ -212,7 +212,7 @@ def test_backup_streams_and_reset_takes_a_separate_lock(clients):
     assert payload[:4] + b"".join(stream) == payload
     lock.release.assert_called_once()
     without_workspace(client)
-    assert list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://node:4201", action="reset")) == []
+    assert orchestration.reset_home_directory(client, 42, lock, homefs_url="http://node:4201") is None
     assert lock.acquire.call_count == lock.release.call_count == 2
     assert [call.args[0] for call in post.call_args_list] == ["http://homefs:4201/volume/42/backup", "http://node:4201/volume/42/reset"]
     response.__exit__.assert_called()
@@ -231,7 +231,7 @@ def test_preparation_failure_does_not_archive_or_reset(clients, failure, status)
     else:
         getattr(container, failure).side_effect = requests.ConnectionError("connection lost")
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup"))
+        list(orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201"))
     assert error.value.status == status
     post.assert_not_called()
     assert lock.release.called is (failure not in ("lock", "redis"))
@@ -244,7 +244,7 @@ def test_backup_handles_auto_removal_and_already_stopped_workspaces(clients, ope
         without_workspace(client)
     else:
         getattr(container, operation).side_effect = docker.errors.NotFound("already removed")
-    assert b"".join(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")) == payload
+    assert b"".join(orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201")) == payload
     lock.release.assert_called_once()
 
 
@@ -253,7 +253,7 @@ def test_reset_refuses_an_existing_workspace_instead_of_stopping_and_deleting_it
     client, container, _, lock, _, post = clients
     container.status = state
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="reset"))
+        orchestration.reset_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
     assert error.value.status == 409 and "Download a new backup" in str(error.value)
     post.assert_not_called()
     container.stop.assert_not_called()
@@ -264,7 +264,6 @@ def test_reset_refuses_an_existing_workspace_instead_of_stopping_and_deleting_it
 def test_unconfirmed_home_operation_lets_lock_expire(clients, failure):
     client, _, response, lock, _, _ = clients
     without_workspace(client)
-    action = "reset" if failure == "invalid_reset" else "backup"
     if failure == "invalid_reset":
         response.json.return_value = {"success": False}
     else:
@@ -274,7 +273,10 @@ def test_unconfirmed_home_operation_lets_lock_expire(clients, failure):
             raise error("Incomplete HTTP stream")
         response.iter_content.side_effect = chunks
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action=action))
+        if failure == "invalid_reset":
+            orchestration.reset_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
+        else:
+            list(orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201"))
     assert error.value.status == 503 and error.value.uncertain
     lock.release.assert_not_called()
     response.__exit__.assert_called_once()
@@ -282,21 +284,23 @@ def test_unconfirmed_home_operation_lets_lock_expire(clients, failure):
 
 def test_client_disconnect_closes_http_response_and_lets_lock_expire(clients):
     client, _, response, lock, _, _ = clients
-    stream = orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")
+    stream = orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
     next(stream)
     stream.close()
     response.__exit__.assert_called_once()
     lock.release.assert_not_called()
 
 
-@pytest.mark.parametrize("action, status", [("backup", 413), ("reset", 500), ("backup", 404)])
-def test_known_homefs_failure_releases_lock(clients, action, status):
+@pytest.mark.parametrize("operation, status", [(orchestration.backup_home_directory, 413), (orchestration.reset_home_directory, 500), (orchestration.backup_home_directory, 404)])
+def test_known_homefs_failure_releases_lock(clients, operation, status):
     client, _, response, lock, _, _ = clients
     without_workspace(client)
     response.status_code = status
     response.json.return_value = {"success": False, "error": "Home operation failed"}
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action=action))
+        result = operation(client, 42, lock, homefs_url="http://homefs:4201")
+        if result is not None:
+            list(result)
     assert error.value.status == status
     lock.release.assert_called_once()
 
