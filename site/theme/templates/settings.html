@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="jumbotron">
+<div class="jumbotron py-4">
   <div class="container">
     <h1>User Settings</h1>
   </div>
 </div>
 <div class="container">
   <div class="row">
-    <div class="col-md-2 offset-md-1">
+    <div class="col-md-3 mb-4">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
         <a class="nav-link" id="settings-ssh-key-tab" data-toggle="pill" href="#ssh-key" role="tab">SSH Key</a>
@@ -19,7 +19,7 @@
         <a class="nav-link" id="settings-home-management-tab" data-toggle="pill" href="#home-management" role="tab">Home Management</a>
       </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-9">
       <div class="tab-content" id="v-pills-tabContent">
 
         <div class="tab-pane fade show active" id="profile" role="tabpanel">
@@ -198,22 +198,22 @@
         </div>
 
         <div class="tab-pane fade" id="home-management" role="tabpanel">
-          <div class="text-center">
-            <h2>Home Management</h2>
-            <p>Download a backup of your home directory, or reset it and download a backup. Files larger than 10 MB are excluded from both backups. Backups are limited to 1 GiB.</p>
-            <p>Backups and resets are each limited to three times per hour. Reset downloads a backup before deleting your files. Keep your download; backups are not retained.</p>
-            <div class="mb-4">
-              <button id="backup-home-button" class="btn btn-primary">Download Backup</button>
-              <p class="mt-2">Stops your current challenge and downloads a backup. Your home files are preserved.</p>
-            </div>
-            <div class="mb-4">
-              <button id="reset-home-button" class="btn btn-danger">Reset Home and Download Backup</button>
-              <p class="mt-2">Stops your current challenge and deletes everything in your home, including files excluded from the backup.</p>
-            </div>
-            <p>Start a new challenge afterward to continue.</p>
-          </div>
-          <br>
-          <div id="home-management-results" class="form-group" aria-live="polite"></div>
+          <h2 class="mb-2">Home Management</h2>
+          <p class="mb-4">Download a backup before resetting your home.</p>
+          <section class="border border-secondary rounded p-4 mb-3" aria-labelledby="home-backup-heading">
+            <h3 id="home-backup-heading" class="h4 text-white">1. Backup</h3>
+            <p>Stops your current challenge and downloads your files as a .tar.gz archive. Your files stay in place.</p>
+            <button id="backup-home-button" class="btn btn-primary">Download Backup</button>
+          </section>
+          <section class="border border-danger rounded p-4 mb-4" aria-labelledby="home-reset-heading">
+            <h3 id="home-reset-heading" class="h4 text-white">2. Reset</h3>
+            <p>Permanently deletes all home files, including files excluded from your backup.</p>
+            <button id="reset-home-button" class="btn btn-danger" disabled>Reset Home</button>
+            <p class="small mb-0 mt-2">Download a backup first to enable Reset.</p>
+          </section>
+          <p class="small mb-2">Files larger than 10 MB are excluded from backups. Backups are limited to 1 GiB.</p>
+          <p class="small">Keep your download; backups are not retained. Start a new challenge to continue.</p>
+          <div id="home-management-results" class="form-group mt-3" aria-live="polite"></div>
         </div>
 
       </div>

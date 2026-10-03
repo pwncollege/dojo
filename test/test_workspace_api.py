@@ -1023,9 +1023,9 @@ def test_settings_exposes_home_management_actions(random_user_session):
     assert response.status_code == 200
     assert "Home Management" in response.text
     assert 'id="backup-home-button"' in response.text
-    assert 'id="reset-home-button"' in response.text
+    assert 'id="reset-home-button" class="btn btn-danger" disabled' in response.text
     assert "Files larger than 10 MB" in response.text
-    assert "three times per hour" in response.text
+    assert "three times per hour" not in response.text
 
 
 def test_progression_lock_applies_to_members_but_not_dojo_admins(course_workspace):
