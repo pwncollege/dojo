@@ -503,7 +503,7 @@ def test_concurrent_starts_are_serialized_by_the_per_user_lock(standard_workspac
     rejections = [result for result in results if not result.get("success")]
 
     assert len(successes) == 1, f"Expected exactly one of two concurrent starts to win, but got {results}"
-    assert rejections[0].get("error") == "Already starting a challenge; try again in 20 seconds.", (
+    assert rejections[0].get("error") == "Another workspace operation is in progress. Please try again.", (
         f"Expected the losing start to be rejected by the per-user lock, but got {rejections[0]}"
     )
 

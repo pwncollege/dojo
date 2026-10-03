@@ -11,7 +11,7 @@ from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node, user_docker_client
 from ...utils.workspace import start_on_demand_service
-from ...utils.home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, check_home_rate_limit, backup_home_directory, reset_home_directory
+from ...utils.home_management import WORKSPACE_LOCK_TIMEOUT, HomeManagementError, check_home_rate_limit, backup_home_directory, reset_home_directory
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -129,10 +129,10 @@ class ResetHome(Resource):
     @authed_only
     def post(self):
         try:
-            user, lock, homefs_url = home_request()
+            user, lock, homefs_url = prepare_home_request()
             reset_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url)
             return {"success": True, "message": "Home reset. Start a new challenge to continue."}
-        except HomeResetError as error:
+        except HomeManagementError as error:
             return home_error_response(error)
 
 
@@ -141,7 +141,7 @@ class BackupHome(Resource):
     @authed_only
     def post(self):
         try:
-            user, lock, homefs_url = home_request()
+            user, lock, homefs_url = prepare_home_request()
             stream = backup_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url)
             first = next(stream)
             response = Response(chain((first,), stream), mimetype="application/gzip", headers={
@@ -151,15 +151,15 @@ class BackupHome(Resource):
             })
             response.call_on_close(stream.close)
             return response
-        except HomeResetError as error:
+        except HomeManagementError as error:
             return home_error_response(error)
 
 
-def home_request():
+def prepare_home_request():
     user = get_current_user()
     redis_client = redis.from_url(current_app.config["REDIS_URL"])
     check_home_rate_limit(redis_client, user.id)
-    lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
+    lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=WORKSPACE_LOCK_TIMEOUT,
                              blocking_timeout=0, raise_on_release_error=False)
     node = user_node(user)
     homefs_url = f"http://192.168.42.{node + 1}:4201" if node is not None else "http://homefs:4201"

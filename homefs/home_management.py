@@ -1,12 +1,14 @@
 import errno
-import fcntl
 import gzip
 import io
 import os
 from contextlib import contextmanager
 from pathlib import Path
 import shutil
+import stat
 import tarfile
+
+from utils import file_lock
 
 
 MAX_FILE_SIZE = 10_000_000
@@ -34,8 +36,7 @@ def locked_home(volume_path):
     home = volume_path / "active"
     if home.is_symlink() or not home.is_dir():
         raise FileNotFoundError(errno.ENOENT, "Home volume is not active", str(home))
-    with (volume_path / ".active.lock").open("a+b") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with file_lock(volume_path / ".active.lock", blocking=False):
         yield home
 
 
@@ -48,17 +49,14 @@ def home_paths(path):
 
 def backup_home(volume_path):
     with locked_home(volume_path) as home:
-        def include(member):
-            if (member.isfile() or member.islnk()) and (home / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
-                return None
-            return member
-
         output = io.BytesIO()
-        writer = LimitedWriter(output)
-        with gzip.GzipFile(fileobj=writer, mode="wb", compresslevel=6) as compressed:
+        with gzip.GzipFile(fileobj=LimitedWriter(output), mode="wb", compresslevel=6) as compressed:
             with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
                 for path in home_paths(home):
-                    archive.add(path, arcname=str(Path("home/hacker") / path.relative_to(home)), recursive=False, filter=include)
+                    info = path.lstat()
+                    if stat.S_ISREG(info.st_mode) and info.st_size > MAX_FILE_SIZE:
+                        continue
+                    archive.add(path, arcname=str(Path("home/hacker") / path.relative_to(home)), recursive=False)
                     chunk = output.getvalue()
                     output.seek(0)
                     output.truncate()

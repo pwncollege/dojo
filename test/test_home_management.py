@@ -9,8 +9,7 @@ import socket
 import subprocess
 import sys
 import tarfile
-from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from flask import Flask
 from werkzeug.routing import BaseConverter
@@ -32,8 +31,9 @@ def load_module(name, path):
     return module
 
 
-storage = load_module("home_reset_storage", "homefs/reset_home.py")
-orchestration = load_module("home_reset_orchestration", "site/dojo/utils/home_reset.py")
+with patch.dict(sys.modules, {"utils": load_module("homefs_utils", "homefs/utils.py")}):
+    storage = load_module("home_management_storage", "homefs/home_management.py")
+orchestration = load_module("home_management_orchestration", "site/dojo/utils/home_management.py")
 
 
 @pytest.fixture
@@ -82,11 +82,13 @@ def test_backup_includes_10_mb_boundary_but_excludes_larger_files_and_hardlinks(
         with (home / name).open("wb") as stream:
             stream.truncate(size)
     os.link(home / "large", home / "large-link")
+    os.link(home / "saved-file", home / "saved-link")
     output = io.BytesIO()
     output.write(b"".join(storage.backup_home(volume)))
     output.seek(0)
     with tarfile.open(fileobj=output, mode="r:gz") as archive:
         assert archive.getmember("home/hacker/boundary").size == 10_000_000
+        assert archive.extractfile("home/hacker/saved-link").read() == b"saved data"
         assert "home/hacker/large" not in archive.getnames()
         assert "home/hacker/large-link" not in archive.getnames()
     assert (home / "large").stat().st_size == 10_000_001
@@ -134,7 +136,7 @@ def test_busy_home_prevents_operations(volume, action):
 def home_api(volume, monkeypatch):
     for name in ("utils", "btrfs_volume", "models"):
         monkeypatch.setitem(sys.modules, name, load_module(f"homefs_{name}", f"homefs/{name}.py"))
-    monkeypatch.setitem(sys.modules, "reset_home", storage)
+    monkeypatch.setitem(sys.modules, "home_management", storage)
     volume_server = load_module("homefs_volume_server", "homefs/volume_server.py")
     monkeypatch.setattr(volume_server, "STORAGE_ROOT", volume.parent)
     monkeypatch.setattr(volume_server, "backup_home", storage.backup_home)
@@ -230,7 +232,7 @@ def test_preparation_failure_does_not_archive_or_reset(clients, failure, status)
         client.containers.get.side_effect = requests.ConnectionError("unavailable")
     else:
         getattr(container, failure).side_effect = requests.ConnectionError("connection lost")
-    with pytest.raises(orchestration.HomeResetError) as error:
+    with pytest.raises(orchestration.HomeManagementError) as error:
         list(orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201"))
     assert error.value.status == status
     post.assert_not_called()
@@ -252,7 +254,7 @@ def test_backup_handles_auto_removal_and_already_stopped_workspaces(clients, ope
 def test_reset_refuses_an_existing_workspace_instead_of_stopping_and_deleting_it(clients, state):
     client, container, _, lock, _, post = clients
     container.status = state
-    with pytest.raises(orchestration.HomeResetError) as error:
+    with pytest.raises(orchestration.HomeManagementError) as error:
         orchestration.reset_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
     assert error.value.status == 409 and "Download a new backup" in str(error.value)
     post.assert_not_called()
@@ -272,12 +274,12 @@ def test_unconfirmed_home_operation_lets_lock_expire(clients, failure):
             error = requests.ConnectionError if failure == "transport" else requests.exceptions.ChunkedEncodingError
             raise error("Incomplete HTTP stream")
         response.iter_content.side_effect = chunks
-    with pytest.raises(orchestration.HomeResetError) as error:
+    with pytest.raises(orchestration.HomeManagementError) as error:
         if failure == "invalid_reset":
             orchestration.reset_home_directory(client, 42, lock, homefs_url="http://homefs:4201")
         else:
             list(orchestration.backup_home_directory(client, 42, lock, homefs_url="http://homefs:4201"))
-    assert error.value.status == 503 and error.value.uncertain
+    assert error.value.status == 503 and error.value.retry_after == 600
     lock.release.assert_not_called()
     response.__exit__.assert_called_once()
 
@@ -297,7 +299,7 @@ def test_known_homefs_failure_releases_lock(clients, operation, status):
     without_workspace(client)
     response.status_code = status
     response.json.return_value = {"success": False, "error": "Home operation failed"}
-    with pytest.raises(orchestration.HomeResetError) as error:
+    with pytest.raises(orchestration.HomeManagementError) as error:
         result = operation(client, 42, lock, homefs_url="http://homefs:4201")
         if result is not None:
             list(result)
@@ -314,7 +316,7 @@ def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome):
     else:
         counter.execute.return_value = [outcome, True, 3599]
     if outcome == "unavailable" or outcome > 5:
-        with pytest.raises(orchestration.HomeResetError) as error:
+        with pytest.raises(orchestration.HomeManagementError) as error:
             orchestration.check_home_rate_limit(cache, 42)
         assert error.value.status == (503 if outcome == "unavailable" else 429)
         assert error.value.retry_after == (None if outcome == "unavailable" else 3599)

@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models import ActiveVolumes, db
 from btrfs_volume import STORAGE_ROOT
-from reset_home import backup_home, reset_home
+from home_management import backup_home, reset_home
 
 
 volume_server = Blueprint("volume", __name__)
