@@ -59,7 +59,7 @@ def validate_restart(username, mode):
             assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
         except subprocess.CalledProcessError as error:
             restart_error = (error.returncode, error.stdout, error.stderr)
-            if "Already starting a challenge" not in (error.stderr or ""):
+            if "Another workspace operation is in progress" not in (error.stderr or ""):
                 break
             time.sleep(3)
 

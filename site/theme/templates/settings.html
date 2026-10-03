@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="jumbotron">
+<div class="jumbotron py-4">
   <div class="container">
     <h1>User Settings</h1>
   </div>
 </div>
 <div class="container">
   <div class="row">
-    <div class="col-md-2 offset-md-1">
+    <div class="col-md-3 mb-4">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
         <a class="nav-link" id="settings-ssh-key-tab" data-toggle="pill" href="#ssh-key" role="tab">SSH Key</a>
@@ -16,10 +16,10 @@
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
 	      <a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
-        <a class="nav-link" id="settings-reset-home-tab" data-toggle="pill" href="#reset-home" role="tab">Reset Home</a>
+        <a class="nav-link" id="settings-home-management-tab" data-toggle="pill" href="#home-management" role="tab">Home Management</a>
       </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-9">
       <div class="tab-content" id="v-pills-tabContent">
 
         <div class="tab-pane fade show active" id="profile" role="tabpanel">
@@ -197,14 +197,23 @@
           {% endif %}
         </div>
 
-        <div class="tab-pane fade" id="reset-home" role="tabpanel">
-          <div class="text-center">
-            <h2>Reset Home Directory</h2>
-            <p>Click the button below to reset your home directory. This will zip your current home directory and wipe everything else.</p>
-            <button id="reset-home-button" class="btn btn-danger">Reset Home Directory</button>
-          </div>
-          <br>
-          <div id="reset-home-results" class="form-group"></div>
+        <div class="tab-pane fade" id="home-management" role="tabpanel">
+          <h2 class="mb-2">Home Management</h2>
+          <p class="mb-4">Download a backup before resetting your home.</p>
+          <section class="border border-secondary rounded p-4 mb-3" aria-labelledby="home-backup-heading">
+            <h3 id="home-backup-heading" class="h4 text-white">Backup</h3>
+            <p>Download your home as a .tar.gz archive. Your files stay in place.</p>
+            <button id="backup-home-button" class="btn btn-primary">Download Backup</button>
+          </section>
+          <section class="border border-danger rounded p-4 mb-4" aria-labelledby="home-reset-heading">
+            <h3 id="home-reset-heading" class="h4 text-white">Reset</h3>
+            <p>Permanently deletes all home files, including files excluded from your backup.</p>
+            <button id="reset-home-button" class="btn btn-danger" disabled>Reset Home</button>
+            <p class="small mb-0 mt-2">Download a backup first to enable Reset.</p>
+          </section>
+          <p class="small mb-2">Files larger than 10 MB are excluded from backups. Backups are limited to 1 GiB.</p>
+          <p class="small">Backing up stops your current workspace. Start a new challenge afterward to continue.</p>
+          <div id="home-management-results" class="form-group mt-3" aria-live="polite"></div>
         </div>
 
       </div>
