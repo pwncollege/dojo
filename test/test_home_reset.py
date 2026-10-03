@@ -7,9 +7,13 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import tarfile
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
+
+from flask import Flask
+from werkzeug.routing import BaseConverter
 
 import docker
 import pytest
@@ -61,8 +65,7 @@ def test_backup_reads_private_and_hidden_files_without_following_links_or_saving
     output = io.BytesIO()
     with socket.socket(socket.AF_UNIX) as listener:
         listener.bind("service.sock")
-        size = storage.backup_home(volume, output)
-    assert size == len(output.getvalue())
+        output.write(b"".join(storage.backup_home(volume)))
     assert backup_contents(output) == {"home/hacker/.emacs.d/settings": b"private data", "home/hacker/saved-file": b"saved data"}
     output.seek(0)
     with tarfile.open(fileobj=output, mode="r:gz") as archive:
@@ -80,13 +83,13 @@ def test_backup_includes_10_mb_boundary_but_excludes_larger_files_and_hardlinks(
             stream.truncate(size)
     os.link(home / "large", home / "large-link")
     output = io.BytesIO()
-    size = storage.backup_home(volume, output)
+    output.write(b"".join(storage.backup_home(volume)))
     output.seek(0)
     with tarfile.open(fileobj=output, mode="r:gz") as archive:
         assert archive.getmember("home/hacker/boundary").size == 10_000_000
         assert "home/hacker/large" not in archive.getnames()
         assert "home/hacker/large-link" not in archive.getnames()
-    assert size == len(output.getvalue()) and (home / "large").stat().st_size == 10_000_001
+    assert (home / "large").stat().st_size == 10_000_001
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="homefs runs as root")
@@ -113,7 +116,7 @@ def test_failed_backup_preserves_home_and_does_not_retain_files(volume, monkeypa
         data = b"x" * 64 * 1024 if failure == "compressible_limit" else os.urandom(64 * 1024)
         (volume / "active" / "large-data").write_bytes(data)
     with pytest.raises(OSError):
-        storage.backup_home(volume, io.BytesIO())
+        b"".join(storage.backup_home(volume))
     assert (volume / "active" / "saved-file").read_text() == "saved data"
     assert set(entry.name for entry in volume.iterdir()) == {"active", ".active.lock"}
 
@@ -123,189 +126,197 @@ def test_busy_home_prevents_operations(volume, action):
     with (volume / ".active.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         with pytest.raises(BlockingIOError):
-            storage.backup_home(volume, io.BytesIO()) if action == "backup" else storage.reset_home(volume)
+            b"".join(storage.backup_home(volume)) if action == "backup" else storage.reset_home(volume)
     assert (volume / "active" / "saved-file").exists()
 
 
-@pytest.mark.parametrize("user_id", ["../42", "/42", "0", "-1", "１２"])
-def test_storage_command_rejects_invalid_user_id(user_id, monkeypatch, capsys):
-    monkeypatch.setattr(storage.sys, "argv", ["reset_home.py", user_id, "backup"])
-    assert storage.main() == 1
-    assert capsys.readouterr().err.strip() == "Invalid user ID"
+@pytest.fixture
+def home_api(volume, monkeypatch):
+    for name in ("utils", "btrfs_volume", "models"):
+        monkeypatch.setitem(sys.modules, name, load_module(f"homefs_{name}", f"homefs/{name}.py"))
+    monkeypatch.setitem(sys.modules, "reset_home", storage)
+    volume_server = load_module("homefs_volume_server", "homefs/volume_server.py")
+    monkeypatch.setattr(volume_server, "STORAGE_ROOT", volume.parent)
+    monkeypatch.setattr(volume_server, "backup_home", storage.backup_home)
+    monkeypatch.setattr(volume_server, "reset_home", storage.reset_home)
+    app = Flask(__name__)
+    app.url_map.converters["volume"] = BaseConverter
+    app.register_blueprint(volume_server.volume_server, url_prefix="/volume")
+    return app.test_client()
 
 
-def test_storage_command_streams_gzip_on_stdout_and_byte_count_on_stderr(volume, monkeypatch, capsys):
-    output = io.BytesIO()
-    with monkeypatch.context() as patch:
-        patch.setenv("STORAGE_ROOT", str(volume.parent))
-        patch.setattr(storage.sys, "argv", ["reset_home.py", "42", "backup"])
-        patch.setattr(storage.sys, "stdout", SimpleNamespace(buffer=output))
-        assert storage.main() == 0
-    assert int(capsys.readouterr().err) == len(output.getvalue())
-    assert backup_contents(output) == {"home/hacker/saved-file": b"saved data"}
+def test_homefs_api_streams_backup_and_resets_home(home_api, volume):
+    response = home_api.post("/volume/42/backup")
+    assert response.status_code == 200
+    assert response.mimetype == "application/gzip" and "Content-Length" not in response.headers
+    assert backup_contents(io.BytesIO(response.data)) == {"home/hacker/saved-file": b"saved data"}
+    response.close()
+    assert (volume / "active" / "saved-file").exists()
+    response = home_api.post("/volume/42/reset")
+    assert response.status_code == 200 and response.json["success"]
+    assert not list((volume / "active").iterdir())
 
 
-def command_stream(payload=b"", stderr=b""):
-    chunks = [(payload[i:i+19], None) for i in range(0, len(payload), 19)]
-    chunks.append((None, stderr))
-    return (chunk for chunk in chunks)
+@pytest.mark.parametrize("user_id", ["0", "-1", "../42", "42x"])
+def test_homefs_api_rejects_invalid_user_id(home_api, user_id):
+    assert home_api.post(f"/volume/{user_id}/reset").status_code == 404
+
+
+@pytest.mark.parametrize("action", ["backup", "reset"])
+def test_homefs_api_reports_busy_or_missing_home(home_api, volume, action):
+    assert home_api.post(f"/volume/43/{action}").status_code == 404
+    with (volume / ".active.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        response = home_api.post(f"/volume/42/{action}")
+        assert response.status_code == 409 and response.json["success"] is False
+    assert (volume / "active" / "saved-file").exists()
+
+
+def test_backup_stream_closure_releases_home_lock(volume):
+    stream = storage.backup_home(volume)
+    assert next(stream)
+    with (volume / ".active.lock").open("a+b") as lock:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        stream.close()
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 @pytest.fixture
-def clients():
-    file = io.BytesIO()
-    with tarfile.open(fileobj=file, mode="w:gz") as archive:
-        member = tarfile.TarInfo("home/hacker/saved-file")
-        member.size = len(b"saved data")
-        archive.addfile(member, io.BytesIO(b"saved data"))
-    payload = file.getvalue()
-    api = Mock()
-    container, homefs, lock = Mock(status="running"), Mock(id="homefs", client=SimpleNamespace(api=api)), Mock()
-    api.exec_create.side_effect = lambda homefs_id, command, **kwargs: {"Id": command[-1]}
-    api.exec_start.side_effect = lambda action, **kwargs: command_stream(payload, str(len(payload)).encode()) if action == "backup" else command_stream()
-    api.exec_inspect.return_value = {"ExitCode": 0}
-    client = Mock(api=api)
-    api.timeout = 60
-    client.containers.get.side_effect = lambda name: {"user_42": container, "homefs": homefs}[name]
+def clients(monkeypatch):
+    payload = b"archive-data"
+    response = MagicMock(status_code=200)
+    response.__enter__.return_value = response
+    response.iter_content.side_effect = lambda **kwargs: iter([payload[:4], payload[4:]])
+    response.json.return_value = {"success": True}
+    post = Mock(return_value=response)
+    monkeypatch.setattr(orchestration.requests, "post", post)
+    container, lock = Mock(status="running"), Mock()
+    client = Mock()
+    client.containers.get.return_value = container
     lock.acquire.return_value = True
-    return client, container, homefs, lock, payload
+    return client, container, response, lock, payload, post
 
 
-def without_workspace(client, homefs):
-    def get(name):
-        if name == "homefs":
-            return homefs
-        raise docker.errors.NotFound("No workspace")
-    client.containers.get.side_effect = get
+def without_workspace(client):
+    client.containers.get.side_effect = docker.errors.NotFound("No workspace")
 
 
-def test_backup_streams_before_completion_and_reset_takes_a_separate_lock(clients):
-    client, container, homefs, lock, payload = clients
-    stream = orchestration.manage_home_directory(client, 42, lock, action="backup")
-    assert next(stream) == payload[:19]
+def test_backup_streams_and_reset_takes_a_separate_lock(clients):
+    client, container, response, lock, payload, post = clients
+    stream = orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")
+    assert next(stream) == payload[:4]
     container.stop.assert_called_once_with(timeout=10)
     container.wait.assert_called_once_with(condition="removed", timeout=30)
     lock.release.assert_not_called()
-    lock.release.assert_not_called()
-    assert payload[:19] + b"".join(stream) == payload
-    assert [call.args[1][-1] for call in client.api.exec_create.call_args_list] == ["backup"]
+    assert payload[:4] + b"".join(stream) == payload
     lock.release.assert_called_once()
-    stream.close()
-    without_workspace(client, homefs)
-    assert list(orchestration.manage_home_directory(client, 42, lock, action="reset")) == []
+    without_workspace(client)
+    assert list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://node:4201", action="reset")) == []
     assert lock.acquire.call_count == lock.release.call_count == 2
-    assert [call.args[1][-1] for call in client.api.exec_create.call_args_list] == ["backup", "reset"]
+    assert [call.args[0] for call in post.call_args_list] == ["http://homefs:4201/volume/42/backup", "http://node:4201/volume/42/reset"]
+    response.__exit__.assert_called()
     container.pause.assert_not_called()
-    assert client.api.timeout == 60
 
 
-@pytest.mark.parametrize("failure, status", [("lock", 409), ("redis", 503), ("storage", 503), ("workspace", 503), ("stop", 503), ("wait", 503)])
+@pytest.mark.parametrize("failure, status", [("lock", 409), ("redis", 503), ("workspace", 503), ("stop", 503), ("wait", 503)])
 def test_preparation_failure_does_not_archive_or_reset(clients, failure, status):
-    client, container, homefs, lock, _ = clients
+    client, container, _, lock, _, post = clients
     if failure == "lock":
         lock.acquire.return_value = False
     elif failure == "redis":
         lock.acquire.side_effect = redis.exceptions.ConnectionError("redis unavailable")
-    elif failure == "storage":
-        client.containers.get.side_effect = docker.errors.NotFound("homefs")
     elif failure == "workspace":
-        client.containers.get.side_effect = [homefs, requests.ConnectionError("unavailable")]
+        client.containers.get.side_effect = requests.ConnectionError("unavailable")
     else:
         getattr(container, failure).side_effect = requests.ConnectionError("connection lost")
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, action="backup"))
+        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup"))
     assert error.value.status == status
-    client.api.exec_create.assert_not_called()
+    post.assert_not_called()
     assert lock.release.called is (failure not in ("lock", "redis"))
 
 
 @pytest.mark.parametrize("operation", ["stop", "wait", "missing"])
 def test_backup_handles_auto_removal_and_already_stopped_workspaces(clients, operation):
-    client, container, homefs, lock, payload = clients
+    client, container, _, lock, payload, _ = clients
     if operation == "missing":
-        without_workspace(client, homefs)
+        without_workspace(client)
     else:
         getattr(container, operation).side_effect = docker.errors.NotFound("already removed")
-    stream = orchestration.manage_home_directory(client, 42, lock, action="backup")
-    assert b"".join(stream) == payload
-    stream.close()
+    assert b"".join(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")) == payload
     lock.release.assert_called_once()
 
 
 @pytest.mark.parametrize("state", ["running", "paused", "exited"])
 def test_reset_refuses_an_existing_workspace_instead_of_stopping_and_deleting_it(clients, state):
-    client, container, homefs, lock, _ = clients
+    client, container, _, lock, _, post = clients
     container.status = state
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, action="reset"))
+        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="reset"))
     assert error.value.status == 409 and "Download a new backup" in str(error.value)
-    client.api.exec_create.assert_not_called()
+    post.assert_not_called()
     container.stop.assert_not_called()
     lock.release.assert_called_once()
 
 
-@pytest.mark.parametrize("failure", ["transport", "count", "truncated", "running"])
-def test_failed_stream_aborts_without_deleting_home(clients, failure):
-    client, _, _, lock, payload = clients
-    def chunks():
-        yield payload[:19], None
-        if failure == "transport":
-            raise requests.ConnectionError("connection lost")
-        yield payload[19:-5] if failure == "truncated" else payload[19:], None
-        yield None, b"invalid" if failure == "count" else str(len(payload)).encode()
-    iterator = chunks()
-    client.api.exec_start.side_effect = lambda *args, **kwargs: iterator
-    if failure == "running":
-        client.api.exec_inspect.return_value = {"ExitCode": None}
-    stream = orchestration.manage_home_directory(client, 42, lock, action="backup")
-    with pytest.raises(orchestration.HomeResetError):
-        b"".join(stream)
-    stream.close()
-    assert iterator.gi_frame is None
-    assert [call.args[1][-1] for call in client.api.exec_create.call_args_list] == ["backup"]
+@pytest.mark.parametrize("failure", ["transport", "truncated", "invalid_reset"])
+def test_unconfirmed_home_operation_lets_lock_expire(clients, failure):
+    client, _, response, lock, _, _ = clients
+    without_workspace(client)
+    action = "reset" if failure == "invalid_reset" else "backup"
+    if failure == "invalid_reset":
+        response.json.return_value = {"success": False}
+    else:
+        def chunks(**kwargs):
+            yield b"first-chunk"
+            error = requests.ConnectionError if failure == "transport" else requests.exceptions.ChunkedEncodingError
+            raise error("Incomplete HTTP stream")
+        response.iter_content.side_effect = chunks
+    with pytest.raises(orchestration.HomeResetError) as error:
+        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action=action))
+    assert error.value.status == 503 and error.value.uncertain
     lock.release.assert_not_called()
-    assert client.api.timeout == 60
+    response.__exit__.assert_called_once()
 
 
-def test_client_disconnect_closes_docker_stream_and_lets_lock_expire(clients):
-    client, _, _, lock, payload = clients
-    iterator = command_stream(payload, str(len(payload)).encode())
-    client.api.exec_start.side_effect = lambda *args, **kwargs: iterator
-    stream = orchestration.manage_home_directory(client, 42, lock, action="backup")
+def test_client_disconnect_closes_http_response_and_lets_lock_expire(clients):
+    client, _, response, lock, _, _ = clients
+    stream = orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action="backup")
     next(stream)
     stream.close()
-    assert iterator.gi_frame is None
-    assert client.api.timeout == 60
+    response.__exit__.assert_called_once()
     lock.release.assert_not_called()
 
 
-@pytest.mark.parametrize("action, code, status", [("backup", errno.EFBIG, 413), ("reset", 1, 500), ("backup", errno.ENOENT, 404)])
-def test_known_helper_failure_releases_lock(clients, action, code, status):
-    client, _, homefs, lock, _ = clients
-    without_workspace(client, homefs)
-    client.api.exec_start.side_effect = lambda *args, **kwargs: command_stream(stderr=b"failed")
-    client.api.exec_inspect.return_value = {"ExitCode": code}
+@pytest.mark.parametrize("action, status", [("backup", 413), ("reset", 500), ("backup", 404)])
+def test_known_homefs_failure_releases_lock(clients, action, status):
+    client, _, response, lock, _, _ = clients
+    without_workspace(client)
+    response.status_code = status
+    response.json.return_value = {"success": False, "error": "Home operation failed"}
     with pytest.raises(orchestration.HomeResetError) as error:
-        list(orchestration.manage_home_directory(client, 42, lock, action=action))
+        list(orchestration.manage_home_directory(client, 42, lock, homefs_url="http://homefs:4201", action=action))
     assert error.value.status == status
     lock.release.assert_called_once()
 
 
-@pytest.mark.parametrize("outcome", [0, 3599, "unavailable"])
+@pytest.mark.parametrize("outcome", [1, 5, 6, "unavailable"])
 def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome):
-    cache = Mock()
+    cache = MagicMock()
+    counter = cache.pipeline.return_value.__enter__.return_value
     if outcome == "unavailable":
-        cache.eval.side_effect = redis.exceptions.ConnectionError("redis unavailable")
+        counter.execute.side_effect = redis.exceptions.ConnectionError("redis unavailable")
     else:
-        cache.eval.return_value = outcome
-    if outcome:
+        counter.execute.return_value = [outcome, True, 3599]
+    if outcome == "unavailable" or outcome > 5:
         with pytest.raises(orchestration.HomeResetError) as error:
             orchestration.check_home_rate_limit(cache, 42)
         assert error.value.status == (503 if outcome == "unavailable" else 429)
-        assert error.value.retry_after == (None if outcome == "unavailable" else outcome)
+        assert error.value.retry_after == (None if outcome == "unavailable" else 3599)
     else:
         orchestration.check_home_rate_limit(cache, 42)
-    assert cache.eval.call_args.args[2] == "user.42.home.requests"
+    counter.incr.assert_called_once_with("user.42.home.requests")
 
 
 def test_home_management_browser_download_and_error_flows():

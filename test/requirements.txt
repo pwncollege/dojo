@@ -12,3 +12,4 @@ requests
 selenium
 textual
 itsdangerous
+flask_sqlalchemy

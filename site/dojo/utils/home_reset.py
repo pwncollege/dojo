@@ -1,7 +1,4 @@
-import errno
 import logging
-import uuid
-from contextlib import closing
 
 import docker
 import redis
@@ -11,18 +8,6 @@ import requests
 logger = logging.getLogger(__name__)
 HOME_RESET_TIMEOUT = 180
 HOME_RESET_LOCK_TIMEOUT = 600
-HOME_RATE_LIMIT_SCRIPT = """
-local clock = redis.call('TIME')
-local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
-redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - 3600)
-if redis.call('ZCARD', KEYS[1]) >= 5 then
-    local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
-    return math.max(1, math.ceil(tonumber(oldest[2]) + 3600 - now))
-end
-redis.call('ZADD', KEYS[1], now, ARGV[1])
-redis.call('EXPIRE', KEYS[1], 3600)
-return 0
-"""
 
 
 class HomeResetError(Exception):
@@ -35,48 +20,35 @@ class HomeResetError(Exception):
 
 def check_home_rate_limit(redis_client, user_id):
     try:
-        retry_after = redis_client.eval(HOME_RATE_LIMIT_SCRIPT, 1, f"user.{user_id}.home.requests", uuid.uuid4().hex)
+        key = f"user.{user_id}.home.requests"
+        with redis_client.pipeline() as counter:
+            counter.incr(key)
+            counter.expire(key, 3600, nx=True)
+            counter.ttl(key)
+            count, _, retry_after = counter.execute()
     except redis.exceptions.RedisError as error:
         raise HomeResetError("Home management is temporarily unavailable. Please try again.", 503) from error
-    if retry_after:
+    if count > 5:
         raise HomeResetError("Home management is limited to five operations per hour. Please try again later.",
-                             429, retry_after=retry_after)
+                             429, retry_after=max(1, retry_after))
 
 
-def run_home_command(homefs, user_id, action):
-    stderr, size = b"", 0
+def request_home_operation(homefs_url, user_id, action):
     try:
-        api = homefs.client.api
-        exec_id = api.exec_create(homefs.id,
-            ["/usr/bin/timeout", "-k", "10", str(HOME_RESET_TIMEOUT),
-             "/usr/local/bin/python", "/opt/homefs/reset_home.py", str(user_id), action],
-            user="0")["Id"]
-        chunks = api.exec_start(exec_id, stream=True, demux=True)
-        with closing(chunks):
-            for data, diagnostic in chunks:
-                stderr = (stderr + (diagnostic or b""))[-4096:]
-                if data:
-                    size += len(data)
-                    yield data
-        exit_code = api.exec_inspect(exec_id)["ExitCode"]
-        if exit_code is None:
-            raise ValueError("Home operation is still running")
-        if exit_code:
-            logger.error("Home operation failed user_id=%s action=%s exit_code=%s stderr=%r", user_id, action, exit_code, stderr)
-            status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(exit_code, 500)
-            message = {409: "Home storage is busy. Please try again.",
-                       404: "No home directory found. Start a challenge and try again.",
-                       413: "The backup exceeds 1 GiB. Remove some files and try again."}
-            raise HomeResetError(message.get(status, "Could not complete the home operation. Please try again."), status)
-        if action == "backup" and not 0 < size == int(stderr):
-            raise ValueError("Incomplete home backup")
-    except (docker.errors.DockerException, requests.RequestException, OSError, ValueError, KeyError) as error:
+        with requests.post(f"{homefs_url}/volume/{user_id}/{action}", stream=True, timeout=(5, HOME_RESET_TIMEOUT)) as response:
+            if response.status_code != 200:
+                raise HomeResetError(response.json().get("error", "Could not complete the home operation. Please try again."), response.status_code)
+            if action == "backup":
+                yield from response.iter_content(chunk_size=65536)
+            elif not response.json().get("success"):
+                raise ValueError("Home reset was not confirmed")
+    except (requests.RequestException, ValueError) as error:
         logger.exception("Unable to confirm home operation user_id=%s action=%s", user_id, action)
         raise HomeResetError("Could not confirm completion. Wait 10 minutes before trying again.",
                              503, uncertain=True, retry_after=HOME_RESET_LOCK_TIMEOUT) from error
 
 
-def manage_home_directory(docker_client, user_id, lock, *, action):
+def manage_home_directory(docker_client, user_id, lock, *, homefs_url, action):
     try:
         acquired = lock.acquire(blocking=False)
     except redis.exceptions.RedisError as error:
@@ -84,10 +56,8 @@ def manage_home_directory(docker_client, user_id, lock, *, action):
     if not acquired:
         raise HomeResetError("Another workspace operation is in progress. Please try again.", 409)
     uncertain = False
-    previous_timeout = docker_client.api.timeout
     try:
         try:
-            homefs = docker_client.containers.get("homefs")
             try:
                 container = docker_client.containers.get(f"user_{user_id}")
             except docker.errors.NotFound:
@@ -103,16 +73,14 @@ def manage_home_directory(docker_client, user_id, lock, *, action):
                     pass
         except (docker.errors.DockerException, requests.RequestException) as error:
             raise HomeResetError("Could not prepare the workspace. Please try again.", 503) from error
-        docker_client.api.timeout = HOME_RESET_TIMEOUT + 30
         uncertain = True
-        yield from run_home_command(homefs, user_id, action)
+        yield from request_home_operation(homefs_url, user_id, action)
         uncertain = False
     except HomeResetError as error:
         uncertain = error.uncertain
         raise
     finally:
-        docker_client.api.timeout = previous_timeout
-        # A disconnected exec can still hold the homefs lock until its timeout.
+        # A disconnected request can still hold the homefs lock until its timeout.
         if not uncertain:
             try:
                 lock.release()

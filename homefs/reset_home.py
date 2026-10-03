@@ -1,11 +1,11 @@
 import errno
 import fcntl
 import gzip
+import io
 import os
 from contextlib import contextmanager
 from pathlib import Path
 import shutil
-import sys
 import tarfile
 
 
@@ -39,19 +39,32 @@ def locked_home(volume_path):
         yield home
 
 
-def backup_home(volume_path, output):
+def home_paths(path):
+    yield path
+    if path.is_dir() and not path.is_symlink():
+        for child in path.iterdir():
+            yield from home_paths(child)
+
+
+def backup_home(volume_path):
     with locked_home(volume_path) as home:
         def include(member):
             if (member.isfile() or member.islnk()) and (home / Path(member.name).relative_to("home/hacker")).stat().st_size > MAX_FILE_SIZE:
                 return None
             return member
 
+        output = io.BytesIO()
         writer = LimitedWriter(output)
         with gzip.GzipFile(fileobj=writer, mode="wb", compresslevel=6) as compressed:
             with tarfile.open(fileobj=LimitedWriter(compressed), mode="w|") as archive:
-                archive.add(home, arcname="home/hacker", filter=include)
-        output.flush()
-        return writer.size
+                for path in home_paths(home):
+                    archive.add(path, arcname=str(Path("home/hacker") / path.relative_to(home)), recursive=False, filter=include)
+                    chunk = output.getvalue()
+                    output.seek(0)
+                    output.truncate()
+                    if chunk:
+                        yield chunk
+        yield output.getvalue()
 
 
 def reset_home(volume_path):
@@ -63,24 +76,3 @@ def reset_home(volume_path):
                 entry.unlink()
         os.chown(home, 1000, 1000)
         os.chmod(home, 0o755)
-
-
-def main():
-    try:
-        if len(sys.argv) != 3 or not sys.argv[1].isascii() or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
-            raise ValueError("Invalid user ID")
-        volume_path = Path(os.environ.get("STORAGE_ROOT", "/data")) / str(int(sys.argv[1]))
-        if sys.argv[2] == "backup":
-            print(backup_home(volume_path, sys.stdout.buffer), file=sys.stderr)
-        elif sys.argv[2] == "reset":
-            reset_home(volume_path)
-        else:
-            raise ValueError("Invalid home operation")
-    except Exception as error:
-        print(str(error), file=sys.stderr)
-        return getattr(error, "errno", None) or 1
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

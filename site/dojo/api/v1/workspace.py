@@ -146,7 +146,9 @@ def home_operation(action):
         check_home_rate_limit(redis_client, user.id)
         lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
                                  blocking_timeout=0, raise_on_release_error=False)
-        stream = manage_home_directory(user_docker_client(user), user.id, lock, action=action)
+        node = user_node(user)
+        homefs_url = f"http://192.168.42.{node + 1}:4201" if node is not None else "http://homefs:4201"
+        stream = manage_home_directory(user_docker_client(user), user.id, lock, homefs_url=homefs_url, action=action)
         if action == "reset":
             with closing(stream):
                 for _ in stream:
