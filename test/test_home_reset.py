@@ -158,7 +158,7 @@ def test_homefs_api_streams_backup_and_resets_home(home_api, volume):
 
 
 @pytest.mark.parametrize("user_id", ["0", "-1", "../42", "42x"])
-def test_homefs_api_rejects_invalid_user_id(home_api, user_id):
+def test_homefs_api_rejects_invalid_or_missing_user_id(home_api, user_id):
     assert home_api.post(f"/volume/{user_id}/reset").status_code == 404
 
 
