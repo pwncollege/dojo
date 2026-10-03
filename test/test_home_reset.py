@@ -292,8 +292,7 @@ def test_known_helper_failure_releases_lock(clients, action, code, status):
 
 
 @pytest.mark.parametrize("outcome", [0, 3599, "unavailable"])
-@pytest.mark.parametrize("action", ["backup", "reset"])
-def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome, action):
+def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome):
     cache = Mock()
     if outcome == "unavailable":
         cache.eval.side_effect = redis.exceptions.ConnectionError("redis unavailable")
@@ -301,12 +300,12 @@ def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome, act
         cache.eval.return_value = outcome
     if outcome:
         with pytest.raises(orchestration.HomeResetError) as error:
-            orchestration.check_home_rate_limit(cache, 42, action)
+            orchestration.check_home_rate_limit(cache, 42)
         assert error.value.status == (503 if outcome == "unavailable" else 429)
         assert error.value.retry_after == (None if outcome == "unavailable" else outcome)
     else:
-        orchestration.check_home_rate_limit(cache, 42, action)
-    assert cache.eval.call_args.args[2] == f"user.42.home.{action}.requests"
+        orchestration.check_home_rate_limit(cache, 42)
+    assert cache.eval.call_args.args[2] == "user.42.home.requests"
 
 
 def test_home_management_browser_download_and_error_flows():

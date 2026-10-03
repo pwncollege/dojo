@@ -15,7 +15,7 @@ HOME_RATE_LIMIT_SCRIPT = """
 local clock = redis.call('TIME')
 local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - 3600)
-if redis.call('ZCARD', KEYS[1]) >= 3 then
+if redis.call('ZCARD', KEYS[1]) >= 5 then
     local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
     return math.max(1, math.ceil(tonumber(oldest[2]) + 3600 - now))
 end
@@ -33,13 +33,13 @@ class HomeResetError(Exception):
         self.retry_after = retry_after
 
 
-def check_home_rate_limit(redis_client, user_id, action):
+def check_home_rate_limit(redis_client, user_id):
     try:
-        retry_after = redis_client.eval(HOME_RATE_LIMIT_SCRIPT, 1, f"user.{user_id}.home.{action}.requests", uuid.uuid4().hex)
+        retry_after = redis_client.eval(HOME_RATE_LIMIT_SCRIPT, 1, f"user.{user_id}.home.requests", uuid.uuid4().hex)
     except redis.exceptions.RedisError as error:
         raise HomeResetError("Home management is temporarily unavailable. Please try again.", 503) from error
     if retry_after:
-        raise HomeResetError("You can back up or reset your home three times per hour. Please try again later.",
+        raise HomeResetError("Home management is limited to five operations per hour. Please try again later.",
                              429, retry_after=retry_after)
 
 

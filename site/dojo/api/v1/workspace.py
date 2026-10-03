@@ -143,7 +143,7 @@ def home_operation(action):
     try:
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
-        check_home_rate_limit(redis_client, user.id, action)
+        check_home_rate_limit(redis_client, user.id)
         lock = redis_client.lock(f"user.{user.id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
                                  blocking_timeout=0, raise_on_release_error=False)
         stream = manage_home_directory(user_docker_client(user), user.id, lock, action=action)

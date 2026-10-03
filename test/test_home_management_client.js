@@ -75,7 +75,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
     const canceled = await exercise(["backup", "reset"], [archive()], false);
     assert.equal(canceled.events.filter(event => event[0] === "fetch").length, 1);
     assert.equal(canceled.disabled["#reset-home-button"], false);
-    for (const response of [json({ error: "Three times per hour" }, 429), json({ success: true }), new Error("Connection lost"), archive(new ReadableStream({
+    for (const response of [json({ error: "Rate limit reached" }, 429), json({ success: true }), new Error("Connection lost"), archive(new ReadableStream({
         start(controller) { controller.error(new Error("Incomplete download")); },
     }))]) {
         const result = await exercise(["backup", "reset"], [response]);

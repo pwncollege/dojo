@@ -1008,14 +1008,19 @@ def test_reset_refuses_a_workspace_restarted_after_backup(random_user, example_d
     assert workspace_output(name, "cat /home/hacker/new-data") == "keep"
 
 
-@pytest.mark.parametrize("endpoint", [BACKUP_HOME_API, RESET_HOME_API])
-def test_home_endpoints_have_separate_three_per_hour_limits(random_user_session, endpoint):
-    for _ in range(3):
+@pytest.mark.parametrize("endpoints", [
+    [BACKUP_HOME_API] * 5,
+    [RESET_HOME_API] * 5,
+    [BACKUP_HOME_API, RESET_HOME_API, BACKUP_HOME_API, RESET_HOME_API, BACKUP_HOME_API],
+])
+def test_home_endpoints_share_five_per_hour_limit(random_user_session, endpoints):
+    for endpoint in endpoints:
         assert random_user_session.post(endpoint, json={}).status_code == 404
-    response = random_user_session.post(endpoint, json={})
-    assert response.status_code == 429
-    assert 0 < int(response.headers["Retry-After"]) <= 3600
-    assert "three times per hour" in response.json()["error"]
+    for endpoint in [BACKUP_HOME_API, RESET_HOME_API]:
+        response = random_user_session.post(endpoint, json={})
+        assert response.status_code == 429
+        assert 0 < int(response.headers["Retry-After"]) <= 3600
+        assert "five operations per hour" in response.json()["error"]
 
 
 def test_settings_exposes_home_management_actions(random_user_session):
@@ -1025,7 +1030,7 @@ def test_settings_exposes_home_management_actions(random_user_session):
     assert 'id="backup-home-button"' in response.text
     assert 'id="reset-home-button" class="btn btn-danger" disabled' in response.text
     assert "Files larger than 10 MB" in response.text
-    assert "three times per hour" not in response.text
+    assert "per hour" not in response.text
 
 
 def test_progression_lock_applies_to_members_but_not_dojo_admins(course_workspace):
