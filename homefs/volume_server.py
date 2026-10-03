@@ -1,10 +1,45 @@
-from flask import Blueprint, Response, request
+import errno
+from itertools import chain
+
+from flask import Blueprint, Response, current_app, request
 from sqlalchemy.exc import IntegrityError
 
 from models import ActiveVolumes, db
+from btrfs_volume import STORAGE_ROOT
+from home_management import backup_home, reset_home
 
 
 volume_server = Blueprint("volume", __name__)
+
+
+@volume_server.route("/<int:volume>/backup", methods=["POST"])
+def backup_home_volume(volume):
+    try:
+        stream = backup_home(STORAGE_ROOT / str(volume))
+        first = next(stream)
+    except OSError as error:
+        return home_error_response(error)
+    response = Response(chain((first,), stream), mimetype="application/gzip")
+    response.call_on_close(stream.close)
+    return response
+
+
+@volume_server.route("/<int:volume>/reset", methods=["POST"])
+def reset_home_volume(volume):
+    try:
+        reset_home(STORAGE_ROOT / str(volume))
+    except OSError as error:
+        return home_error_response(error)
+    return {"success": True}
+
+
+def home_error_response(error):
+    current_app.logger.exception("Home operation failed")
+    status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(error.errno, 500)
+    message = {409: "Home storage is busy. Please try again.",
+               404: "No home directory found. Start a challenge and try again.",
+               413: "The backup exceeds 1 GiB. Remove some files and try again."}
+    return {"success": False, "error": message.get(status, "Could not complete the home operation. Please try again.")}, status
 
 
 @volume_server.route("/<volume:volume>", methods=["GET"])
