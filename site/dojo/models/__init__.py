@@ -581,6 +581,7 @@ class DojoModules(db.Model):
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
         visibility = kwargs["visibility"] if "visibility" in kwargs else None
+        access_code = kwargs.pop("access_code", None)
 
         data = kwargs.pop("data", {})
         for field in self.data_fields:
@@ -597,6 +598,7 @@ class DojoModules(db.Model):
             ([DojoChallenges(
                 default=challenge,
                 data=copy.deepcopy(challenge.data or {}),
+                access_code=access_code,
                 required=challenge.required,
                 visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
@@ -752,7 +754,7 @@ class DojoChallenges(db.Model):
     required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces", "access_code"]
     data_defaults = {
         "privileged": False,
         "importable": True,

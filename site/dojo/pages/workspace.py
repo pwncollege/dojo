@@ -3,15 +3,15 @@ import hashlib
 import hmac
 import os
 
-from flask import request, Blueprint, Response, render_template, abort
+from flask import request, Blueprint, Response, render_template, abort, url_for
 from ..utils.user import get_current_user
 from ..utils.decorators import authed_only
 from urllib.parse import urlencode
 
 from ..config import WORKSPACE_SECRET
-from ..models import Dojos, Users
+from ..models import Dojos, Users, DojoChallenges
 from ..utils import user_ipv4, get_current_container, container_password, parse_positive_int
-from ..utils.dojo import get_current_dojo_challenge
+from ..utils.dojo import dojo_accessible, get_current_dojo_challenge, challenge_access_code_error
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -69,11 +69,21 @@ def render_workspace(*, service=None, port=None):
                     error=f"{key} must be true or false",
                 ), 400
 
+        access_code = request.args.get("access_code")
+        dojo = dojo_accessible(launch_ids["dojo"])
+        if dojo:
+            challenge = DojoChallenges.from_id(dojo.reference_id, launch_ids["module"], launch_ids["challenge"]).first()
+            if challenge and (challenge.visible() or dojo.is_admin()):
+                if error := challenge_access_code_error(challenge, access_code):
+                    return render_template("error.html", error=error), 403
+
         fullscreen = launch_options.pop("fullscreen")
         return render_template(
             "workspace_launch.html",
-            launch={**launch_ids, **launch_options},
-            workspace_url=f"{request.path}?fullscreen=true" if fullscreen else request.path,
+            launch={**launch_ids, **launch_options, "access_code": access_code},
+            workspace_url=url_for(request.endpoint, **request.view_args,
+                                  fullscreen="true" if fullscreen else None,
+                                  access_code=access_code),
         )
 
     current_challenge = get_current_dojo_challenge()

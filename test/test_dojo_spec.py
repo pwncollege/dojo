@@ -316,6 +316,57 @@ print("RESULT " + json.dumps(result))
         f"survey-sources src should load the survey body, got {result['survey']}"
 
 
+def test_access_code_inheritance(admin_session):
+    dojo = create_dojo_spec(admin_session, {
+        "id": spec_id("accesscode"), "type": "public", "image": "pwncollege/challenge-simple",
+        "access_code": "dojo-code",
+        "modules": [
+            {"id": "inherited", "challenges": [{"id": "challenge"}]},
+            {"id": "override", "access_code": "module-code", "challenges": [
+                {"id": "inherited"}, {"id": "override", "access_code": "challenge-code"},
+                {"id": "open", "access_code": None},
+            ]},
+            {"id": "open", "access_code": None, "challenges": [
+                {"id": "open"}, {"id": "protected", "access_code": "challenge-code"},
+            ]},
+        ],
+    })
+    expected = {("inherited", "challenge"): "dojo-code", ("override", "inherited"): "module-code",
+                ("override", "override"): "challenge-code", ("override", "open"): None,
+                ("open", "open"): None, ("open", "protected"): "challenge-code"}
+    for (module, challenge), code in expected.items():
+        assert challenge_data(dojo, module, challenge)["access_code"] == code
+    assert "access_code" not in dojo_data(dojo)
+    assert "access_code" not in module_data(dojo, "override")
+    assert "access_code" not in json.dumps(get_modules(admin_session, dojo))
+
+
+@pytest.mark.parametrize("import_scope", ["dojo", "module", "challenge"])
+@pytest.mark.parametrize("overrides, expected", [
+    ({}, None), ({"access_code": None}, None), ({"access_code": "destination-code"}, "destination-code"),
+])
+def test_import_access_code_uses_destination(admin_session, import_scope, overrides, expected):
+    source = create_dojo_spec(admin_session, {
+        "id": spec_id("protectedsource"), "type": "public", "image": "pwncollege/challenge-simple",
+        "access_code": "source-code", "modules": [{"id": "lesson", "challenges": [{"id": "challenge"}]}],
+    })
+    if import_scope == "dojo":
+        source = make_dojo_official(source, admin_session)
+    spec = {"id": spec_id("accessimport"), "type": "public", **overrides}
+    if import_scope == "dojo":
+        spec["import"] = {"dojo": source}
+    elif import_scope == "module":
+        spec["modules"] = [{"id": "lesson", "import": {"dojo": source, "module": "lesson"}}]
+    else:
+        spec["modules"] = [{"id": "lesson", "challenges": [{"id": "challenge", "import": {
+            "dojo": source, "module": "lesson", "challenge": "challenge",
+        }}]}]
+    imported = create_dojo_spec(admin_session, spec)
+    assert challenge_data(imported, "lesson", "challenge")["access_code"] == expected
+    assert challenge_data(source, "lesson", "challenge")["access_code"] == "source-code"
+    assert challenge_db_id(imported, "lesson", "challenge") == challenge_db_id(source, "lesson", "challenge")
+
+
 def test_dojo_level_import_inherits_source_fields(admin_session, example_dojo):
     dojo_id = spec_id("dojoimport")
     dojo = create_dojo_spec(admin_session, {"id": dojo_id, "import": {"dojo": "example"}})
@@ -340,6 +391,7 @@ def test_inherited_modules_preserve_challenge_controls(admin_session, random_use
         "image": "pwncollege/challenge-simple",
         "privileged": True,
         "allow_privileged": False,
+        "access_code": "source-code",
         "survey": {"prompt": "How was the lesson?", "data": "Lesson feedback"},
         "modules": [{"id": "lesson", "interfaces": [{"name": "Web", "port": 8080}], "challenges": [
             {"id": "first"},
@@ -367,6 +419,8 @@ def test_inherited_modules_preserve_challenge_controls(admin_session, random_use
 
     original = controls(source, "lesson")
     assert controls(imported, module_id) == original
+    assert all(challenge_data(imported, module_id, challenge)["access_code"] is None
+               for challenge in ("first", "second"))
     assert [challenge["required"] for challenge in get_module(session, imported, module_id)["challenges"]] == [True, False]
     for challenge in ("first", "second"):
         assert challenge_db_id(imported, module_id, challenge) == challenge_db_id(source, "lesson", challenge)

@@ -6,6 +6,7 @@ import tempfile
 import traceback
 import datetime
 import functools
+import hmac
 import inspect
 import pathlib
 import urllib.request
@@ -65,6 +66,7 @@ DOJO_SPEC = Schema({
     },
 
     Optional("image"): IMAGE_REGEX,
+    Optional("access_code"): Or(None, NAME_REGEX),
     Optional("privileged"): bool,
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
@@ -90,6 +92,7 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("image"): IMAGE_REGEX,
+        Optional("access_code"): Or(None, NAME_REGEX),
         Optional("privileged"): bool,
         Optional("allow_privileged"): bool,
         Optional("show_challenges"): bool,
@@ -139,6 +142,7 @@ DOJO_SPEC = Schema({
                 Optional("description"): str,
                 **VISIBILITY,
                 Optional("image"): IMAGE_REGEX,
+                Optional("access_code"): Or(None, NAME_REGEX),
                 Optional("privileged"): bool,
                 Optional("allow_privileged"): bool,
                 Optional("importable"): bool,
@@ -510,6 +514,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
+                    access_code=shadow("access_code", dojo_data, module_data, challenge_data, default=None),
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
@@ -543,12 +548,14 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
             visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
             show_challenges=shadow("show_challenges", dojo_data, module_data, default_dict=DojoModules.data_defaults),
             show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
+            access_code=shadow("access_code", dojo_data, module_data, default=None),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in data else [
         DojoModules(
             default=module,
             visibility=visibility(DojoModuleVisibilities, dojo_data),
+            access_code=shadow("access_code", dojo_data, default=None),
         )
         for module in (import_dojo.modules if import_dojo else [])
     ]
@@ -768,6 +775,15 @@ def dojo_accessible(id):
     if is_admin():
         return Dojos.from_id(id).first()
     return Dojos.viewable(id=id, user=get_current_user()).first()
+
+
+def challenge_access_code_error(challenge, access_code):
+    if challenge.access_code is None or challenge.dojo.is_admin():
+        return None
+    if access_code is None or access_code == "":
+        return "This challenge requires an access code"
+    if not isinstance(access_code, str) or not hmac.compare_digest(access_code.encode(), challenge.access_code.encode()):
+        return "Invalid challenge access code"
 
 
 def dojo_admins_only(func):
