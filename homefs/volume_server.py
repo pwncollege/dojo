@@ -12,10 +12,10 @@ from reset_home import backup_home, reset_home
 volume_server = Blueprint("volume", __name__)
 
 
-@volume_server.route("/<int:user_id>/backup", methods=["POST"])
-def backup_home_volume(user_id):
+@volume_server.route("/<int:volume>/backup", methods=["POST"])
+def backup_home_volume(volume):
     try:
-        stream = backup_home(STORAGE_ROOT / str(user_id))
+        stream = backup_home(STORAGE_ROOT / str(volume))
         first = next(stream)
     except OSError as error:
         return home_error_response(error)
@@ -24,10 +24,10 @@ def backup_home_volume(user_id):
     return response
 
 
-@volume_server.route("/<int:user_id>/reset", methods=["POST"])
-def reset_home_volume(user_id):
+@volume_server.route("/<int:volume>/reset", methods=["POST"])
+def reset_home_volume(volume):
     try:
-        reset_home(STORAGE_ROOT / str(user_id))
+        reset_home(STORAGE_ROOT / str(volume))
     except OSError as error:
         return home_error_response(error)
     return {"success": True}
