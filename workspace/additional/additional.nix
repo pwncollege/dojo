@@ -3,7 +3,7 @@
 let
   bata24-gef = import ./bata24-gef.nix { inherit pkgs; };
   burpsuite = import ./burpsuite.nix { inherit pkgs; };
-  devdocs = import ./devdocs.nix { inherit pkgs; };
+  devdocs = import ./devdocs { inherit pkgs; };
   ghidra = import ./ghidra.nix { inherit pkgs; };
   ida-free = import ./ida-free.nix { inherit pkgs; };
   llm-tools = import ./llm-tools.nix { inherit pkgs; };
