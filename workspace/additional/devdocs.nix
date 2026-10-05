@@ -3,9 +3,9 @@
 let
   collections = {
     html = "10pnfq0sf03qsgkdscrnrcqi1pbmcbw1dxp04xzn0rl59sxk95ni";
-    css = "0pl6rkcqjcl4cas0qrlv75lvn431ypf5q1nmms17rc8w1gnk3di3";
-    javascript = "0y60yfsg9f32fz2na9zp8kf3vzs2sv7imbj20hfhhma4nr9h1xc2";
-    dom = "1hqmm6jwj01ldcw7mkps8dck18vhvx3g2m8kjqcfl38hzqiazcvr";
+    css = "05g4skfzd9i0shzm5zpibv4n66n6vvr7b3bxp22wq1r1lyvmcm29";
+    javascript = "1a1xqxyssc2h22c3cl5kzbzr51p4fpzk8qjqsg02aqax8d3grqgy";
+    dom = "0vvcyk2483xp08wqs1y9bhm9caj007yp52ypli0mv0g0m3x0xmrf";
     http = "0y6bf4zw7qghh7vyw4db0n0ybni91n00i2p8hq57p3ghaqfs7wc3";
     "python~3.13" = "1ffncwcjwvf64li5j274lyk2iq2qancr8zp2b3m5gp84j8r5wiic";
     sqlite = "1z64abl8jb78k9b4hw19l6a4kn37pwz14pxqmljgdnsfanxjcip5";
@@ -21,6 +21,31 @@ let
       "elinks"
     ];
     hash = "sha256-0w29inZ5CMGex3DxIAUWErM30yMgM1Dqw1QWmRzDssA=";
+  };
+  x86Reference =
+    pkgs.runCommand "felix-cloutier-x86-reference"
+      {
+        nativeBuildInputs = [ pkgs.wget ];
+        outputHashMode = "recursive";
+        outputHashAlgo = "sha256";
+        outputHash = "sha256-wKzeAAfdaWefx48u/WYJbvHXuhDQKp9CrsrKKZIKL6s=";
+      }
+      ''
+        wget --recursive --level=1 --no-parent --no-host-directories \
+          --cut-dirs=1 --adjust-extension --convert-links --page-requisites \
+          --ca-certificate=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt \
+          --tries=3 --timeout=30 --no-verbose --directory-prefix="$out" \
+          https://www.felixcloutier.com/x86/
+      '';
+  syscallTable = pkgs.fetchurl {
+    name = "x64-syscall-table.html";
+    url = "https://x64.syscall.sh/";
+    hash = "sha256-ffznzAVr67RTDad9Iwe6zyN5wXt/GCXDrVhxlnsNoB4=";
+  };
+  abiReference = pkgs.fetchurl {
+    name = "system-v-abi.html";
+    url = "https://osdev.wiki/wiki/System_V_ABI?oldid=29518&action=render";
+    hash = "sha256-KlixiSpCJOmyhEC8wzseUqLio9fBWwSLrhNg74YwWcA=";
   };
   python = pkgs.python3.withPackages (ps: [
     ps.lxml
@@ -106,6 +131,9 @@ let
             python ${prepare} "${slug}" "$out/html/${slug}"
           ''
         ) collections}
+        python ${./devdocs-references.py} \
+          ${x86Reference} \
+          ${syscallTable} ${abiReference} "$out/html"
       '';
 in
 pkgs.runCommand "devdocs-terminal"
