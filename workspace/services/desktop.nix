@@ -40,7 +40,8 @@ let
         -rfbauth /run/dojo/var/desktop-service/Xvnc.passwd \
         -nolisten tcp \
         -geometry 1024x768 \
-        -depth 24
+        -depth 24 \
+        -SendPrimary=0
 
     ${service}/bin/dojo-service start desktop-service/novnc \
       ${novnc}/bin/novnc \

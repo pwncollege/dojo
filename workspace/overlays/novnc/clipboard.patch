@@ -269,10 +269,10 @@ index ae3cad1..a55be83 100644
      }
  }
 diff --git a/core/input/keyboard.js b/core/input/keyboard.js
-index 3cc8917..4e5a699 100644
+index 3cc8917..eac3bf1 100644
 --- a/core/input/keyboard.js
 +++ b/core/input/keyboard.js
-@@ -267,6 +267,30 @@ export default class Keyboard {
+@@ -267,6 +267,31 @@ export default class Keyboard {
  
      // ===== PUBLIC METHODS =====
  
@@ -287,7 +287,8 @@ index 3cc8917..4e5a699 100644
 +        if (!insert) this._sendKeyEvent(KeyTable.XK_Control_L, 'ControlLeft', true);
 +        if (event.shiftKey) this._sendKeyEvent(KeyTable.XK_Shift_L, 'ShiftLeft', true);
 +        const code = insert ? 'Insert' : 'KeyV';
-+        const keysym = insert ? KeyTable.XK_Insert : KeyTable.XK_v;
++        const keysym = insert ? KeyTable.XK_Insert :
++            (event.shiftKey ? KeyTable.XK_V : KeyTable.XK_v);
 +        this._sendKeyEvent(keysym, code, true);
 +        this._sendKeyEvent(keysym, code, false);
 +        this._allKeysUp();
@@ -304,7 +305,7 @@ index 3cc8917..4e5a699 100644
          //Log.Debug(">> Keyboard.grab");
  
 diff --git a/core/rfb.js b/core/rfb.js
-index 8994317..0d4ec43 100644
+index 8994317..eddac68 100644
 --- a/core/rfb.js
 +++ b/core/rfb.js
 @@ -273,6 +273,8 @@ export default class RFB extends EventTargetMixin {
@@ -336,6 +337,27 @@ index 8994317..0d4ec43 100644
          this.dispatchEvent(
              new CustomEvent("clipboard", {detail: {text: text}})
          );
+@@ -2441,6 +2445,7 @@ export default class RFB extends EventTargetMixin {
+                 if (this._clipboardServerCapabilitiesActions[extendedClipboardActionRequest]) {
+ 
+                     if (formats & extendedClipboardFormatText) {
++                        this._clipboardText = null;
+                         RFB.messages.extendedClipboardRequest(this._sock, [extendedClipboardFormatText]);
+                     }
+                 }
+@@ -2453,8 +2458,10 @@ export default class RFB extends EventTargetMixin {
+                 if (!(formats & extendedClipboardFormatText)) {
+                     return true;
+                 }
+-                // Ignore what we had in our clipboard client side.
+-                this._clipboardText = null;
++                if (this._clipboardText != null) {
++                    this._sock.rQskipBytes(length - 4);
++                    return true;
++                }
+ 
+                 // FIXME: Should probably verify that this data was actually requested
+                 let zlibStream = this._sock.rQshiftBytes(length - 4);
 diff --git a/docs/API-internal.md b/docs/API-internal.md
 index 1d0a110..4f68408 100644
 --- a/docs/API-internal.md
@@ -605,10 +627,10 @@ index 1c173a8..91db28c 100644
  
  });
 diff --git a/tests/test.keyboard.js b/tests/test.keyboard.js
-index ccc0124..4770bc5 100644
+index ccc0124..ab4d36e 100644
 --- a/tests/test.keyboard.js
 +++ b/tests/test.keyboard.js
-@@ -19,6 +19,31 @@ describe('Key event handling', function () {
+@@ -19,6 +19,46 @@ describe('Key event handling', function () {
          return e;
      }
  
@@ -627,6 +649,21 @@ index ccc0124..4770bc5 100644
 +            expect(kbd._keyDownList).to.deep.equal({});
 +        });
 +
++        it('uses uppercase V for a shifted paste shortcut', function () {
++            const kbd = new Keyboard(document);
++            kbd.onkeyevent = sinon.spy();
++            kbd.paste({ code: 'KeyV', metaKey: true, shiftKey: true });
++            expect(kbd.onkeyevent.getCalls().map(call => call.args.slice(0, 3)))
++                .to.deep.equal([
++                    [0xffe3, 'ControlLeft', true],
++                    [0xffe1, 'ShiftLeft', true],
++                    [0x56, 'KeyV', true],
++                    [0x56, 'KeyV', false],
++                    [0xffe3, 'ControlLeft', false],
++                    [0xffe1, 'ShiftLeft', false],
++                ]);
++        });
++
 +        it('restores physically held modifiers after a paste', function () {
 +            const kbd = new Keyboard(document);
 +            kbd._handleKeyDown(keyevent('keydown', { code: 'ControlLeft', key: 'Control' }));
@@ -641,7 +678,7 @@ index ccc0124..4770bc5 100644
          it('should decode keydown events', function (done) {
              const kbd = new Keyboard(document);
 diff --git a/tests/test.rfb.js b/tests/test.rfb.js
-index 8d3a971..ca68b8d 100644
+index 8d3a971..e4cf850 100644
 --- a/tests/test.rfb.js
 +++ b/tests/test.rfb.js
 @@ -3467,10 +3467,11 @@ describe('Remote Frame Buffer protocol client', function () {
@@ -707,7 +744,45 @@ index 8d3a971..ca68b8d 100644
                      };
                      let expectedData = "Potatoes";
                      let data = [3, 0, 0, 0];
-@@ -3623,6 +3625,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3619,10 +3621,45 @@ describe('Remote Frame Buffer protocol client', function () {
+                 });
+ 
+                 describe('Handle Provide', function () {
++                    for (const text of ['fresh local λ✓', '']) {
++                        it(`preserves local paste ${JSON.stringify(text)} when an older remote response arrives`, function () {
++                            client._asyncClipboard = {
++                                writeClipboard: sinon.spy(),
++                                ungrab: sinon.stub(),
++                            };
++                            const notify = [3, 0, 0, 0];
++                            push32(notify, toUnsigned32bit(-4));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                notify.concat([0x08, 0x00, 0x00, 0x01])));
++                            client.clipboardPasteFrom(text);
++                            const oldText = deflateWithSize(encodeUTF8('old remote selection'));
++                            const provide = [3, 0, 0, 0];
++                            push32(provide, toUnsigned32bit(-(4 + oldText.length)));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                provide.concat([0x10, 0x00, 0x00, 0x01], Array.from(oldText))));
++                            expect(client._asyncClipboard.writeClipboard).not.to.have.been.called;
++                            const reply = sinon.spy(RFB.messages, 'extendedClipboardProvide');
++                            const request = [3, 0, 0, 0];
++                            push32(request, toUnsigned32bit(-4));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                request.concat([0x02, 0x00, 0x00, 0x01])));
++                            expect(reply).to.have.been.calledOnceWith(
++                                client._sock, [1], [text]);
++                            reply.restore();
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                notify.concat([0x08, 0x00, 0x00, 0x01])));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                provide.concat([0x10, 0x00, 0x00, 0x01], Array.from(oldText))));
++                            expect(client._asyncClipboard.writeClipboard)
++                                .to.have.been.calledOnceWith('old remote selection');
++                        });
++                    }
++
+                     it('should update clipboard with correct Unicode data from a Provide message', async function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -715,7 +790,7 @@ index 8d3a971..ca68b8d 100644
                          };
                          let expectedData = "Aå漢字!";
                          let data = [3, 0, 0, 0];
-@@ -3652,6 +3655,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3652,6 +3689,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -723,7 +798,7 @@ index 8d3a971..ca68b8d 100644
                          };
                          let expectedData = "Oh\nmy\n!";
                          let data = [3, 0, 0, 0];
-@@ -3682,6 +3686,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3682,6 +3720,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
