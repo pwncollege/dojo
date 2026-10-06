@@ -1,7 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import json
 import random
 import re
 import string
+import time
 
 import pytest
 
@@ -332,6 +334,71 @@ def test_multinode_overlay_is_current_isolated_and_ephemeral(multinode_home_user
     assert workspace_run(
         "test ! -e /home/hacker/overlay-only", user=target["name"],
     ).returncode == 0
+
+
+def test_multinode_overlay_waits_for_home_activation():
+    owner = _worker_container(WORKSPACE_NODES[0])
+    volume = _random_name("homefs-activation-")
+    overlay = volume + "-overlay"
+    marker = _random_name("activated")
+    ready_path = f"/data/homes/{volume}/activation-ready"
+    release_path = f"/data/homes/{volume}/activation-release"
+    done_path = f"/data/homes/{volume}/activation-done"
+    activation_started = False
+    script = """import os, sys, time
+from btrfs_volume import BTRFSVolume
+volume = BTRFSVolume(sys.argv[1])
+try:
+    with volume.active_lock():
+        (volume.path / 'activation-ready').touch()
+        deadline = time.monotonic() + 30
+        while not (volume.path / 'activation-release').exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError('overlay test did not release activation')
+            time.sleep(0.05)
+        volume.activate(os.environ.get('STORAGE_HOST', 'localhost'), locked=True)
+        (volume.active_path / 'activation-current').write_text(sys.argv[2])
+finally:
+    (volume.path / 'activation-done').touch()
+"""
+
+    try:
+        status, body = _driver(owner, "Create", {"Name": volume})
+        assert status == 200, (status, body)
+        dojo_run(
+            "curl", "-fsS", "-o", "/dev/null", f"http://localhost:4201/volume/{volume}",
+        )
+        dojo_run("docker", "exec", "-d", "homefs", "python", "-c", script, volume, marker, container=owner)
+        activation_started = True
+        deadline = time.monotonic() + 10
+        while dojo_run("test", "-e", ready_path, container=owner, check=False).returncode != 0:
+            assert time.monotonic() < deadline, "home activation did not acquire its lock"
+            time.sleep(0.05)
+
+        status, body = _driver(owner, "Create", {"Name": overlay, "Opts": {"overlay": volume}})
+        assert status == 200, (status, body)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            mounting = pool.submit(_driver, owner, "Mount", {"Name": overlay, "ID": "activation-view"})
+            try:
+                with pytest.raises(TimeoutError):
+                    mounting.result(timeout=1)
+            finally:
+                dojo_run("touch", release_path, container=owner)
+            status, body = mounting.result(timeout=30)
+
+        assert status == 200, (status, body)
+        assert dojo_run(
+            "cat", f"/data/homes/{volume}/overlays/{overlay}/activation-current", container=owner,
+        ).stdout == marker
+    finally:
+        dojo_run("touch", release_path, container=owner, check=False)
+        if activation_started:
+            deadline = time.monotonic() + 10
+            while dojo_run("test", "-e", done_path, container=owner, check=False).returncode != 0:
+                assert time.monotonic() < deadline, "home activation did not finish before cleanup"
+                time.sleep(0.05)
+        _remove_volume_everywhere(overlay)
+        _remove_volume_everywhere(volume)
 
 
 def test_multinode_coordinator_rejects_competing_active_host():

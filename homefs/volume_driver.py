@@ -104,11 +104,11 @@ def mount_volume(name, id):
 
     elif not docker_volume.mountpoint.exists():
         volume = docker_volume.btrfs
-        if volume.active:
-            with volume.active_lock():
+        with volume.active_lock():
+            if volume.active:
                 snapshot_path = volume.snapshot(locked=True)
-        else:
-            snapshot_path = volume.fetch(STORAGE_HOST)
+            else:
+                snapshot_path = volume.fetch(STORAGE_HOST)
         volume.overlay(docker_volume.name, snapshot_path)
 
     return jsonify({"Mountpoint": str(docker_volume.mountpoint), "Err": ""})

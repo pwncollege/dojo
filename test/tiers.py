@@ -102,6 +102,7 @@ MULTINODE_TESTS = {
     "test_homefs_semantics.py::test_multinode_home_quota_is_enforced_on_owning_worker",
     "test_homefs_semantics.py::test_multinode_home_persists_and_snapshots_through_coordinator",
     "test_homefs_semantics.py::test_multinode_overlay_is_current_isolated_and_ephemeral",
+    "test_homefs_semantics.py::test_multinode_overlay_waits_for_home_activation",
     "test_homefs_semantics.py::test_multinode_coordinator_rejects_competing_active_host",
     "test_multinode.py::test_multinode_container_placement",
     "test_ssh_semantics.py::test_commands_run_in_the_workspace_not_the_sshd_container",
