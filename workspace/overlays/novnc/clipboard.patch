@@ -305,10 +305,18 @@ index 3cc8917..eac3bf1 100644
          //Log.Debug(">> Keyboard.grab");
  
 diff --git a/core/rfb.js b/core/rfb.js
-index 8994317..eddac68 100644
+index 8994317..2ea6333 100644
 --- a/core/rfb.js
 +++ b/core/rfb.js
-@@ -273,6 +273,8 @@ export default class RFB extends EventTargetMixin {
+@@ -158,6 +158,7 @@ export default class RFB extends EventTargetMixin {
+         this._extendedPointerEventSupported = false;
+ 
+         this._clipboardText = null;
++        this._clipboardRequestStale = false;
+         this._clipboardServerCapabilitiesActions = {};
+         this._clipboardServerCapabilitiesFormats = {};
+ 
+@@ -273,6 +274,8 @@ export default class RFB extends EventTargetMixin {
  
          this._keyboard = new Keyboard(this._canvas);
          this._keyboard.onkeyevent = this._handleKeyEvent.bind(this);
@@ -317,7 +325,15 @@ index 8994317..eddac68 100644
          this._remoteCapsLock = null; // Null indicates unknown or irrelevant
          this._remoteNumLock = null;
  
-@@ -628,6 +630,7 @@ export default class RFB extends EventTargetMixin {
+@@ -511,6 +514,7 @@ export default class RFB extends EventTargetMixin {
+             this._clipboardServerCapabilitiesActions[extendedClipboardActionNotify]) {
+ 
+             this._clipboardText = text;
++            this._clipboardRequestStale = true;
+             RFB.messages.extendedClipboardNotify(this._sock, [extendedClipboardFormatText]);
+         } else {
+             let length, i;
+@@ -628,6 +632,7 @@ export default class RFB extends EventTargetMixin {
          this._canvas.removeEventListener("touchstart", this._eventHandlers.focusCanvas);
          this._resizeObserver.disconnect();
          this._keyboard.ungrab();
@@ -325,7 +341,7 @@ index 8994317..eddac68 100644
          this._gestures.detach();
          this._sock.close();
          try {
-@@ -2335,8 +2338,9 @@ export default class RFB extends EventTargetMixin {
+@@ -2335,8 +2340,9 @@ export default class RFB extends EventTargetMixin {
  
      _writeClipboard(text) {
          if (this._viewOnly) return;
@@ -337,27 +353,26 @@ index 8994317..eddac68 100644
          this.dispatchEvent(
              new CustomEvent("clipboard", {detail: {text: text}})
          );
-@@ -2441,6 +2445,7 @@ export default class RFB extends EventTargetMixin {
+@@ -2441,6 +2447,7 @@ export default class RFB extends EventTargetMixin {
                  if (this._clipboardServerCapabilitiesActions[extendedClipboardActionRequest]) {
  
                      if (formats & extendedClipboardFormatText) {
-+                        this._clipboardText = null;
++                        this._clipboardRequestStale = false;
                          RFB.messages.extendedClipboardRequest(this._sock, [extendedClipboardFormatText]);
                      }
                  }
-@@ -2453,8 +2458,10 @@ export default class RFB extends EventTargetMixin {
+@@ -2453,7 +2460,10 @@ export default class RFB extends EventTargetMixin {
                  if (!(formats & extendedClipboardFormatText)) {
                      return true;
                  }
 -                // Ignore what we had in our clipboard client side.
--                this._clipboardText = null;
-+                if (this._clipboardText != null) {
++                if (this._clipboardRequestStale) {
 +                    this._sock.rQskipBytes(length - 4);
 +                    return true;
 +                }
+                 this._clipboardText = null;
  
                  // FIXME: Should probably verify that this data was actually requested
-                 let zlibStream = this._sock.rQshiftBytes(length - 4);
 diff --git a/docs/API-internal.md b/docs/API-internal.md
 index 1d0a110..4f68408 100644
 --- a/docs/API-internal.md
@@ -678,7 +693,7 @@ index ccc0124..ab4d36e 100644
          it('should decode keydown events', function (done) {
              const kbd = new Keyboard(document);
 diff --git a/tests/test.rfb.js b/tests/test.rfb.js
-index 8d3a971..e4cf850 100644
+index 8d3a971..e27250c 100644
 --- a/tests/test.rfb.js
 +++ b/tests/test.rfb.js
 @@ -3467,10 +3467,11 @@ describe('Remote Frame Buffer protocol client', function () {
@@ -806,6 +821,30 @@ index 8d3a971..e4cf850 100644
                          };
                          let expectedData = "hello".repeat(100000);
                          let data = [3, 0, 0, 0];
+@@ -3783,6 +3822,23 @@ describe('Remote Frame Buffer protocol client', function () {
+                         RFB.messages.extendedClipboardProvide.restore();
+                     });
+ 
++                    for (const text of ['fresh local λ✓', '']) {
++                        it(`provides local paste ${JSON.stringify(text)} after a delayed remote notification`, function () {
++                            client.clipboardPasteFrom(text);
++                            const notify = [3, 0, 0, 0];
++                            push32(notify, toUnsigned32bit(-4));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                notify.concat([0x08, 0x00, 0x00, 0x01])));
++                            expect(client._clipboardText).to.equal(text);
++                            const request = [3, 0, 0, 0];
++                            push32(request, toUnsigned32bit(-4));
++                            client._sock._websocket._receiveData(new Uint8Array(
++                                request.concat([0x02, 0x00, 0x00, 0x01])));
++                            expect(RFB.messages.extendedClipboardProvide)
++                                .to.have.been.calledOnceWith(client._sock, [1], [text]);
++                        });
++                    }
++
+                     it('should send a Provide message with supported formats when receiving a Request', function () {
+                         let data = [3, 0, 0, 0];
+                         const flags = [0x02, 0x00, 0x00, 0x01];
 diff --git a/vnc.html b/vnc.html
 index bbda811..ffdb755 100644
 --- a/vnc.html
