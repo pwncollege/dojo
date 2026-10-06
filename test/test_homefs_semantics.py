@@ -121,6 +121,7 @@ def multinode_home_users(example_dojo):
     users_by_node = {}
     registered_users = []
     required_nodes = set(WORKSPACE_NODES[:2])
+    same_node_helper = None
 
     for _ in range(len(WORKSPACE_NODES) * 3):
         name = _random_name("homefsnode")
@@ -130,24 +131,28 @@ def multinode_home_users(example_dojo):
         registered_users.append(dict(name=name, session=session, id=user_id, node=node_id))
         if node_id in required_nodes and node_id not in users_by_node:
             users_by_node[node_id] = registered_users[-1]
-        if required_nodes <= users_by_node.keys():
+        elif node_id == WORKSPACE_NODES[0] and same_node_helper is None:
+            same_node_helper = registered_users[-1]
+        if required_nodes <= users_by_node.keys() and same_node_helper is not None:
             break
 
     assert required_nodes <= users_by_node.keys(), users_by_node
+    assert same_node_helper is not None
 
     dormant_name = _random_name("homefsdormant")
     login(dormant_name, dormant_name, register=True)
     dormant_id = get_user_id(dormant_name)
     users = [users_by_node[node_id] for node_id in WORKSPACE_NODES[:2]]
+    active_users = [*users, same_node_helper]
 
-    for user in users:
+    for user in active_users:
         start_challenge(example_dojo, "hello", "apple", session=user["session"])
 
-    yield dict(users=users, dormant_id=dormant_id)
+    yield dict(users=users, dormant_id=dormant_id, same_node_helper=same_node_helper)
 
-    for user in users:
+    for user in active_users:
         remove_workspace_container(user["name"])
-    for user in users:
+    for user in active_users:
         _remove_volume_everywhere(f"{user['id']}-overlay")
         _remove_volume_everywhere(str(user["id"]))
 
@@ -267,17 +272,31 @@ def test_multinode_home_persists_and_snapshots_through_coordinator(multinode_hom
     ).stdout == marker
 
 
-def test_multinode_cross_node_overlay_is_current_isolated_and_ephemeral(multinode_home_users, example_dojo):
+@pytest.mark.parametrize("same_node", [False, True], ids=["cross-node", "same-node"])
+def test_multinode_overlay_is_current_isolated_and_ephemeral(multinode_home_users, example_dojo, same_node):
     target, helper = multinode_home_users["users"]
-    assert target["node"] != helper["node"]
+    if same_node:
+        helper = multinode_home_users["same_node_helper"]
+    assert (target["node"] == helper["node"]) == same_node
     target_owner = _worker_container(target["node"])
     helper_owner = _worker_container(helper["node"])
     overlay_name = f"{helper['id']}-overlay"
     overlay_path = f"/data/homes/{target['id']}/overlays/{overlay_name}"
+    cached_marker = _random_name("cached")
     target_marker = _random_name("target")
     helper_marker = _random_name("helper")
 
-    workspace_run(f"printf {target_marker} > /home/hacker/cross-node-current", user=target["name"])
+    workspace_run(f"printf {cached_marker} > /home/hacker/overlay-current", user=target["name"])
+    headers = dojo_run(
+        "curl", "-fsS", "-D-", "-o", "/dev/null",
+        f"http://localhost:4201/volume/{target['id']}",
+    ).stdout
+    etag_match = re.search(r"(?i)^ETag: (\S+)", headers, re.M)
+    assert etag_match, headers
+    assert dojo_run(
+        "cat", f"/data/homes/{target['id']}/snapshots/{etag_match.group(1)}/overlay-current",
+    ).stdout == cached_marker
+    workspace_run(f"printf {target_marker} > /home/hacker/overlay-current", user=target["name"])
     token_response = target["session"].post(TOKENS_API, json={})
     assert token_response.status_code == 200, token_response.text
     token = token_response.json()["data"]["value"]
@@ -294,23 +313,24 @@ def test_multinode_cross_node_overlay_is_current_isolated_and_ephemeral(multinod
     own_mounts = [line for line in mountinfo if " /home/me " in line]
     assert len(target_mounts) == 1 and f"/{target['id']}/overlays/{overlay_name}" in target_mounts[0]
     assert len(own_mounts) == 1 and f"/{helper['id']}/active" in own_mounts[0]
-    assert workspace_run("cat /home/hacker/cross-node-current", user=helper["name"]).stdout == target_marker
+    assert workspace_run("cat /home/hacker/overlay-current", user=helper["name"]).stdout == target_marker
 
-    workspace_run("printf overlay-only > /home/hacker/cross-node-overlay", user=helper["name"])
+    workspace_run("printf overlay-only > /home/hacker/overlay-only", user=helper["name"])
     workspace_run(f"printf {helper_marker} > /home/me/helper-own-home", user=helper["name"])
-    assert dojo_run("cat", f"{overlay_path}/cross-node-overlay", container=helper_owner).stdout == "overlay-only"
-    assert dojo_run("test", "-e", overlay_path, container=target_owner, check=False).returncode != 0
+    assert dojo_run("cat", f"{overlay_path}/overlay-only", container=helper_owner).stdout == "overlay-only"
+    if not same_node:
+        assert dojo_run("test", "-e", overlay_path, container=target_owner, check=False).returncode != 0
     assert workspace_run(
-        "test ! -e /home/hacker/cross-node-overlay", user=target["name"],
+        "test ! -e /home/hacker/overlay-only", user=target["name"],
     ).returncode == 0
 
     start_challenge(example_dojo, "world", "earth", session=helper["session"])
 
     assert dojo_run("test", "-e", overlay_path, container=helper_owner, check=False).returncode != 0
     assert workspace_run("cat /home/hacker/helper-own-home", user=helper["name"]).stdout == helper_marker
-    assert workspace_run("cat /home/hacker/cross-node-current", user=target["name"]).stdout == target_marker
+    assert workspace_run("cat /home/hacker/overlay-current", user=target["name"]).stdout == target_marker
     assert workspace_run(
-        "test ! -e /home/hacker/cross-node-overlay", user=target["name"],
+        "test ! -e /home/hacker/overlay-only", user=target["name"],
     ).returncode == 0
 
 
