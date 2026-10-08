@@ -69,6 +69,9 @@ function getRecentService(root) {
 }
 
 function showWorkspaceLoadError(content, result) {
+    if (!content.isConnected) {
+        return;
+    }
     content.src = "";
     animateBanner(
         {target: $(content).closest(".challenge-workspace").find(".workspace-controls")[0]},
@@ -80,12 +83,15 @@ function showWorkspaceLoadError(content, result) {
 function specialSelect(name, content) {
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", name);
-    fetch(url, {
+    return fetch(url, {
         method: "GET",
         credentials: "same-origin"
     })
     .then(response => response.json())
     .then(result => {
+        if (!content.isConnected) {
+            return;
+        }
         if (result.success) {
             const url = new URL(result["iframe_src"]);
             // Set the port if in dev environment (may be forwarded via a server)
@@ -104,12 +110,15 @@ function specialSelect(name, content) {
 function portSelect(port, content) {
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("port", port);
-    fetch(url, {
+    return fetch(url, {
         method: "GET",
         credentials: "same-origin"
     })
     .then(response => response.json())
     .then(result => {
+        if (!content.isConnected) {
+            return;
+        }
         if (result.success) {
             const url = new URL(result["iframe_src"]);
             // Set the port if in dev environment (may be forwarded via a server)
@@ -126,12 +135,15 @@ function portSelect(port, content) {
 }
 
 function loadIframe(service, content) {
-    if (isSpecialService(service)) {
-        specialSelect(serviceName(service), content);
-    }
-    else {
-        portSelect(servicePort(service), content);
-    }
+    content.workspaceLoading = true;
+    const request = isSpecialService(service)
+        ? specialSelect(serviceName(service), content)
+        : portSelect(servicePort(service), content);
+    request.catch(() => {
+        showWorkspaceLoadError(content, {error: "Failed to load workspace service."});
+    }).finally(() => {
+        content.workspaceLoading = false;
+    });
 }
 
 function workspaceUrl(service) {
@@ -150,7 +162,7 @@ function selectService(service, log=true) {
     if (log) {logService(service);}
     const workspace = $(content).closest(".challenge-workspace");
     const root = workspace.find(".workspace-controls");
-    $(content).show();
+    workspace.find(".workspace-iframe").hide();
     workspace.find(".workspace-description").hide();
     root.find(".workspace-description-control").removeClass("active").attr("aria-pressed", "false");
     root.find(".workspace-service").each(function () {
@@ -164,16 +176,35 @@ function selectService(service, log=true) {
         window.history.replaceState(null, "", url);
     }
     if (serviceName(service) == "ssh" && servicePort(service) == "") {
-        content.src = "";
-        $(content).addClass("SSH");
+        $(content).hide();
         workspace.find(".workspace-ssh").show();
         return;
     }
-    else {
-        $(content).removeClass("SSH");
-        workspace.find(".workspace-ssh").hide();
+    workspace.find(".workspace-ssh").hide();
+    let cached = workspace.find(".workspace-iframe").filter(function () {
+        return this.dataset.service === service;
+    })[0];
+    if (!cached) {
+        if (content.dataset.service) {
+            cached = content.cloneNode(false);
+            cached.removeAttribute("src");
+            cached.removeAttribute("id");
+            cached.removeAttribute("name");
+            content.after(cached);
+        }
+        else {
+            cached = content;
+        }
+        cached.dataset.service = service;
     }
-    loadIframe(service, content);
+    content.removeAttribute("id");
+    content.removeAttribute("name");
+    cached.id = "workspace-iframe";
+    cached.name = "workspace";
+    $(cached).show();
+    if (!cached.getAttribute("src") && !cached.workspaceLoading) {
+        loadIframe(service, cached);
+    }
 }
 
 function descriptionClickCallback(event) {
@@ -181,7 +212,7 @@ function descriptionClickCallback(event) {
     const button = $(event.currentTarget);
     const root = context(event);
     const workspace = root.closest(".challenge-workspace");
-    workspace.find("#workspace-iframe").hide();
+    workspace.find(".workspace-iframe").hide();
     workspace.find(".workspace-ssh").hide();
     workspace.find(".workspace-description").show();
     root.find(".workspace-service").removeClass("active").attr("aria-pressed", "false");
@@ -220,7 +251,8 @@ function serviceClickCallback(event) {
     const button = $(event.currentTarget);
     const service = button.attr("data-service");
     if (!isPopout(context(event))) {
-        if (button.hasClass("active")) {
+        const content = document.getElementById("workspace-iframe");
+        if (button.hasClass("active") && (content?.getAttribute("src") || content?.workspaceLoading)) {
             return;
         }
         selectService(service);
@@ -452,6 +484,7 @@ function refreshWorkspace(root) {
         loadWorkspace(false);
         return;
     }
+    resetWorkspace(root);
     var active = root.find(".workspace-service.active").attr("data-service");
     if (active) {
         selectService(active, false);
@@ -459,6 +492,20 @@ function refreshWorkspace(root) {
     else {
         loadWorkspace(false);
     }
+}
+
+function resetWorkspace(root) {
+    const frames = root.closest(".challenge-workspace").find(".workspace-iframe");
+    if (!frames.length) {
+        return;
+    }
+    const content = frames[0].cloneNode(false);
+    content.removeAttribute("src");
+    content.removeAttribute("data-service");
+    content.id = "workspace-iframe";
+    content.name = "workspace";
+    frames.first().before(content);
+    frames.remove();
 }
 
 const channel = new BroadcastChannel("Challenge-Sync-Channel");
