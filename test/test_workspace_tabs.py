@@ -7,7 +7,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-import requests
 from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
@@ -17,9 +16,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 @pytest.fixture(scope="module")
 def workspace_jquery():
-    response = requests.get("https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js", timeout=30)
-    response.raise_for_status()
-    return response.content
+    return (pathlib.Path(__file__).parent / "vendor/jquery-3.5.1.min.js").read_bytes()
 
 
 @pytest.fixture
