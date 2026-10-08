@@ -27,6 +27,7 @@ $(() => {
     $("footer").hide();
 
     channel.addEventListener("message", (event) => {
+        resetWorkspace($(".workspace-controls"));
         window.location.reload();
     });
 })

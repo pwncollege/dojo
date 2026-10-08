@@ -30,7 +30,7 @@
         flex-direction: column;
     }
 
-    #workspace-iframe {
+    .workspace-iframe {
         flex: 1;
         width: 100%;
         border: none;
@@ -65,7 +65,7 @@
 
 {% block content %}
 <div class="challenge-workspace" data-initial-service="{{ initial_service or '' }}">
-  <iframe src="" id="workspace-iframe" name="workspace" allow="clipboard-read *; clipboard-write *"></iframe>
+  <iframe src="" id="workspace-iframe" class="workspace-iframe" name="workspace" allow="clipboard-read *; clipboard-write *"></iframe>
   <div class="workspace-ssh" style="display: none;">
     <h3>Connect with SSH</h3>
     Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>

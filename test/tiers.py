@@ -45,6 +45,7 @@ TEST_FILE_TIERS = {
     "test_workspace_api.py": "semantic",
     "test_workspace_proxy.py": "contract",
     "test_workspace_runtime.py": "integration",
+    "test_workspace_tabs.py": "unit",
     "test_workspace_tui.py": "semantic",
     "test_workspace_llm.py": "semantic",
 }
