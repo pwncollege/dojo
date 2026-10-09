@@ -1,7 +1,7 @@
 FROM alpine:latest
 
 RUN apk add --no-cache nix
-RUN apk add --no-cache git
+RUN apk add --no-cache git jq
 RUN cat >> /etc/nix/nix.conf <<EOF
 experimental-features = nix-command flakes
 accept-flake-config = true
@@ -19,6 +19,15 @@ nix build ".#${DOJO_WORKSPACE:-default}" \
     --out-link "$NIX_PROFILE" \
     --no-update-lock-file \
     --print-build-logs
+
+inputs=$(nix flake archive --json --no-update-lock-file .)
+inputs=$(printf '%s\n' "$inputs" | jq -c '[.. | objects | .path // empty] | unique')
+input_root=$(DOJO_WORKSPACE_INPUTS="$inputs" nix eval --raw --impure --expr '
+    builtins.toFile "dojo-workspace-inputs" (builtins.toJSON (
+        map builtins.storePath (builtins.fromJSON (builtins.getEnv "DOJO_WORKSPACE_INPUTS"))
+    ))
+')
+nix-store --realise "$input_root" --add-root "${NIX_PROFILE}-inputs" >/dev/null
 
 SUID_FILE="$NIX_PROFILE/suid"
 if [ -e "$SUID_FILE" ]; then
@@ -38,14 +47,22 @@ ln -sfn "$NIX_PROFILE" "${NIX_PROFILES_DIR}/dojo-workspace"
 echo "Updated profile to $NIX_PROFILE"
 
 echo "Removing old profiles..."
-find "$NIX_PROFILES_DIR" -maxdepth 1 -name 'dojo-workspace-*' -type l -mmin +600 -print -exec rm -f {} +
+cutoff=$(($(date +%s) - 72 * 60 * 60))
+profiles=$(find "$NIX_PROFILES_DIR" -maxdepth 1 -name 'dojo-workspace-*' ! -name '*-inputs' ! -path "$NIX_PROFILE" -type l)
+position=1
+for profile in $(printf '%s\n' "$profiles" | sort -r); do
+    position=$((position + 1))
+    modified=$(stat -c %Y "$profile")
+    if [ "$position" -gt 5 ] || [ "$modified" -lt "$cutoff" ]; then
+        echo "$profile"
+        rm -f "$profile" "${profile}-inputs"
+    fi
+done
 echo "Removed old profiles"
 
-if  [ "$NIX_GARBAGE_COLLECT" = "true" ]; then
-    echo "Garbage collecting..."
-    nix-collect-garbage -d
-    echo "Garbage collected"
-fi
+echo "Garbage collecting..."
+nix-store --gc
+echo "Garbage collected"
 EOF
 
 WORKDIR /workspace
