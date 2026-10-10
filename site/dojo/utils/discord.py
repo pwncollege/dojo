@@ -1,9 +1,7 @@
-import time
-
 import requests
 from flask import url_for
 
-from ..models import DiscordUsers, cache
+from ..models import cache
 from ..config import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
 
 
@@ -13,13 +11,8 @@ API_ENDPOINT = "https://discord.com/api/v9"
 
 def discord_request(endpoint, method="GET", **kwargs):
     headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
-    while True:
-        response = requests.request(method, f"{API_ENDPOINT}{endpoint}", headers=headers, **kwargs)
-        if response.status_code == 429:
-            retry_after = response.json().get("retry_after", 1)
-            time.sleep(retry_after)
-            continue
-        break
+    kwargs.setdefault("timeout", 5)
+    response = requests.request(method, f"{API_ENDPOINT}{endpoint}", headers=headers, **kwargs)
     response.raise_for_status()
     if "application/json" in response.headers.get("Content-Type", ""):
         return response.json()
@@ -32,8 +25,7 @@ def guild_request(endpoint, method="GET", **kwargs):
 
 
 def get_bot_join_server_url():
-    # "Server Members Intent" also required
-    params = dict(client_id=DISCORD_CLIENT_ID, scope="bot", permissions=268437504, guild_id=DISCORD_GUILD_ID)
+    params = dict(client_id=DISCORD_CLIENT_ID, scope="bot", permissions=268438528, guild_id=DISCORD_GUILD_ID)
     url = requests.Request("GET", f"{OAUTH_ENDPOINT}/authorize", params=params).prepare().url
     return url
 
@@ -57,13 +49,15 @@ def get_discord_id(auth_code):
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
     }
-    response = requests.post(f"{OAUTH_ENDPOINT}/token", data=data, headers=headers)
+    response = requests.post(f"{OAUTH_ENDPOINT}/token", data=data, headers=headers, timeout=5)
+    response.raise_for_status()
     access_token = response.json()["access_token"]
 
     headers = {
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(f"{API_ENDPOINT}/users/@me", headers=headers)
+    response = requests.get(f"{API_ENDPOINT}/users/@me", headers=headers, timeout=5)
+    response.raise_for_status()
     discord_id = response.json()["id"]
     return discord_id
 
@@ -91,7 +85,8 @@ def get_discord_roles():
 
 def send_message(message, channel_name):
     channel_ids = [channel["id"] for channel in guild_request("/channels") if channel["name"] == channel_name]
-    assert len(channel_ids) == 1
+    if len(channel_ids) != 1:
+        raise RuntimeError(f"Expected one Discord channel named {channel_name}")
     channel_id = channel_ids[0]
     json = dict(content=message)
     discord_request(f"/channels/{channel_id}/messages", method="POST", json=json)

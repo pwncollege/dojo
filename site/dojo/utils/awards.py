@@ -1,6 +1,9 @@
 import datetime
 import functools
 import inspect
+import logging
+
+import requests
 
 from flask import url_for, abort
 
@@ -8,6 +11,9 @@ from .discord import get_discord_roles, get_discord_member, add_role, send_messa
 from .background_stats import get_cached_stat
 from ..models import Dojos, Belts, Emojis, DiscordUsers, cache, db
 from .feed import publish_belt_earned, publish_emoji_earned
+
+
+logger = logging.getLogger(__name__)
 
 
 BELT_ORDER = [ "orange", "yellow", "green", "purple", "blue", "brown", "red", "black" ]
@@ -97,20 +103,6 @@ def update_awards(user):
         belt_display = belt.title() + " Belt"
         publish_belt_earned(user, belt, belt_display, dojo)
 
-    discord_user = DiscordUsers.query.filter_by(user=user).first()
-    discord_member = discord_user and get_discord_member(discord_user.discord_id)
-    discord_roles = get_discord_roles()
-    for belt in BELT_REQUIREMENTS:
-        if belt not in current_belts:
-            continue
-        belt_role = belt.title() + " Belt"
-        missing_role = discord_member and discord_roles.get(belt_role) not in discord_member["roles"]
-        if not missing_role:
-            continue
-        add_role(discord_user.discord_id, belt_role)
-        send_message(f"<@{discord_user.discord_id}> earned their {belt_role}! :tada:", "belting-ceremony")
-        cache.delete_memoized(get_discord_member, discord_user.discord_id)
-
     current_emojis = get_user_emojis(user)
     for emoji,dojo_display_name,hex_dojo_id in current_emojis:
         emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="CURRENT").first()
@@ -133,6 +125,31 @@ def update_awards(user):
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
+
+    try:
+        update_discord_belts(user, current_belts)
+    except (requests.RequestException, KeyError, RuntimeError) as error:
+        logger.warning("Discord belt synchronization failed for user %s (%s)", user.id, type(error).__name__)
+
+
+def update_discord_belts(user, current_belts):
+    belt_roles = [belt.title() + " Belt" for belt in BELT_REQUIREMENTS if belt in current_belts]
+    if not belt_roles:
+        return
+    discord_user = DiscordUsers.query.filter_by(user=user).first()
+    if not discord_user:
+        return
+    discord_member = get_discord_member(discord_user.discord_id)
+    if not discord_member:
+        return
+    discord_roles = get_discord_roles()
+    for belt_role in belt_roles:
+        if discord_roles[belt_role] in discord_member["roles"]:
+            continue
+        add_role(discord_user.discord_id, belt_role)
+        cache.delete_memoized(get_discord_member, discord_user.discord_id)
+        send_message(f"<@{discord_user.discord_id}> earned their {belt_role}! :tada:", "belting-ceremony")
+
 
 def grant_award(user, emoji, description, category):
     db.session.add(Emojis(user=user, name="CUSTOM", description=description, category=category, icon=emoji))

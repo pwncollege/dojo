@@ -1,4 +1,3 @@
-import datetime
 import json
 import random
 import string
@@ -24,11 +23,7 @@ from utils import (
 
 
 DISCORD_API = f"{DOJO_URL}/pwncollege_api/v1/discord"
-ACTIVITY_COLUMNS = "(user_id, source_user_id, type, guild_id, channel_id, message_id, message_timestamp)"
 
-# Everything the count/window tests seed lives in the distant past so that it can
-# never perturb the leaderboard, whose default window is the current year.
-PAST = "2001"
 
 DOJO_FILES_SPEC = """
 files:
@@ -58,23 +53,6 @@ def config_env_value(key):
     return ""
 
 
-def activity_count():
-    return int(db_sql("SELECT count(*) FROM discord_user_activity"))
-
-
-def insert_activity(discord_id, activity_type, rows):
-    values = ", ".join(
-        f"({discord_id}, {source_user_id}, '{activity_type}', 1, 1, {message_id}, '{timestamp}')"
-        for message_id, source_user_id, timestamp in rows
-    )
-    db_sql(f"INSERT INTO discord_user_activity {ACTIVITY_COLUMNS} VALUES {values}")
-
-
-def delete_activity(*discord_ids):
-    ids = ", ".join(str(discord_id) for discord_id in discord_ids)
-    db_sql(f"DELETE FROM discord_user_activity WHERE user_id IN ({ids})")
-
-
 def link_discord(user_id, discord_id):
     db_sql(f"INSERT INTO discord_users (user_id, discord_id) VALUES ({user_id}, {discord_id})")
 
@@ -98,10 +76,6 @@ def dojo_challenge_ids(dojo_reference_id):
         "ORDER BY dc.module_index, dc.challenge_index"
     )
     return [tuple(line.split("|")) for line in rows.strip().splitlines() if line]
-
-
-def leaderboard_entry(leaderboard, discord_id):
-    return next((entry for entry in leaderboard if entry["discord_id"] == discord_id), None)
 
 
 def index_next_section(text):
@@ -131,20 +105,6 @@ def site_direct(url, session=None, method=None):
 
 
 @pytest.fixture(scope="module")
-def bot_auth():
-    secret = config_env_value("DISCORD_CLIENT_SECRET")
-    if secret:
-        return {"Authorization": f"Bearer {secret}"}
-    # With no configured secret the only way to satisfy auth_check is the empty-token
-    # bypass that test_discord_bot_auth_empty_secret_bypass_closed reports as a defect.
-    headers = {"Authorization": "Bearer  x"}
-    probe = requests.get(f"{DISCORD_API}/memes/user/1", headers=headers)
-    if probe.status_code != 200:
-        pytest.skip("no DISCORD_CLIENT_SECRET configured and the empty-secret bypass is closed")
-    return headers
-
-
-@pytest.fixture(scope="module")
 def side_user():
     return register_side_user(60_000_000_000)
 
@@ -158,29 +118,11 @@ def side_other_user():
 def linked_discord_user(side_user):
     _, _, user_id, discord_id = side_user
     unlink_discord(user_id)
-    delete_activity(discord_id)
     link_discord(user_id, discord_id)
     try:
         yield side_user
     finally:
-        delete_activity(discord_id)
         unlink_discord(user_id)
-
-
-@pytest.fixture(scope="module")
-def side_course_dojo(admin_session):
-    spec = f"""
-id: si-course-{random_name()}
-name: Side Integrations Course Dojo
-type: public
-modules:
-  - id: lessons
-    name: Lessons
-    challenges:
-      - id: first
-        name: First
-{DOJO_FILES_SPEC}"""
-    return create_dojo_yml(spec, session=admin_session)
 
 
 @pytest.fixture(scope="module")
@@ -199,367 +141,6 @@ modules:
     rid = create_dojo_yml(spec, session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
-
-
-def test_discord_bot_auth_rejects_missing_or_wrong_bearer():
-    endpoints = [
-        f"{DISCORD_API}/activity/1234",
-        f"{DISCORD_API}/memes/user/1234",
-        f"{DISCORD_API}/thanks/user/1234",
-    ]
-    before = activity_count()
-    for endpoint in endpoints:
-        response = requests.get(endpoint)
-        assert response.status_code == 401, f"{endpoint} returned {response.status_code}"
-        assert response.json() == {"success": False, "error": "Unauthorized"}
-
-    response = requests.get(endpoints[0], headers={"Authorization": "Bearer wrongsecret"})
-    assert response.status_code == 401
-    assert activity_count() == before, "rejected bot requests must not touch discord_user_activity"
-
-
-def test_discord_bot_auth_empty_secret_bypass_closed():
-    if config_env_value("DISCORD_CLIENT_SECRET"):
-        pytest.skip("deployment has a DISCORD_CLIENT_SECRET configured")
-    headers = {"Authorization": "Bearer  x"}
-    before = activity_count()
-
-    response = requests.get(f"{DISCORD_API}/memes/user/1234", headers=headers)
-    assert response.status_code == 401, \
-        f"an unconfigured deployment accepted an empty bot token: {response.status_code} {response.text[:200]}"
-
-    body = {"source_user_id": 1, "guild_id": 2, "channel_id": 3, "message_id": 1,
-            "message_timestamp": f"{PAST}-01-01T00:00:00"}
-    response = requests.post(f"{DISCORD_API}/memes/user/1234", json=body, headers=headers)
-    assert response.status_code == 401, f"anonymous bot write accepted: {response.status_code}"
-    assert activity_count() == before, "an unauthorized POST inserted a discord_user_activity row"
-
-
-def test_discord_bot_post_authorization_bypasses_csrf(side_other_user, bot_auth):
-    _, session, _, _ = side_other_user
-
-    response = requests.post(f"{DISCORD_API}/memes/user/1234", json={})
-    assert response.status_code == 403, \
-        f"expected CSRF rejection without an Authorization header, got {response.status_code}"
-
-    response = requests.post(f"{DISCORD_API}/memes/user/1234", json={}, headers=bot_auth)
-    assert response.status_code == 400, f"expected the handler to be reached, got {response.status_code}"
-    assert "source_user_id" in response.json()["error"], response.json()
-
-    response = session.post(f"{DISCORD_API}/memes/user/1234", json={})
-    assert response.status_code == 401, \
-        f"a session-authenticated POST must still fail bot auth, got {response.status_code}"
-    assert response.json() == {"success": False, "error": "Unauthorized"}
-
-
-def test_discord_activity_unknown_discord_id_404(bot_auth):
-    assert int(db_sql("SELECT count(*) FROM discord_users WHERE discord_id = 999999999")) == 0
-    response = requests.get(f"{DISCORD_API}/activity/999999999", headers=bot_auth)
-    assert response.status_code == 404, f"expected 404, got {response.status_code}"
-    assert response.json() == {"success": False, "error": "Discord user not found"}
-
-
-def test_discord_activity_linked_user_without_container(linked_discord_user, bot_auth):
-    name, _, _, discord_id = linked_discord_user
-    remove_workspace_container(name)
-    response = requests.get(f"{DISCORD_API}/activity/{discord_id}", headers=bot_auth)
-    assert response.status_code == 200, f"expected 200, got {response.status_code}"
-    assert response.json() == {"success": True, "activity": None}, response.json()
-
-
-def test_discord_activity_reports_running_challenge(linked_discord_user, example_dojo, bot_auth):
-    name, session, _, discord_id = linked_discord_user
-    start_challenge(example_dojo, "hello", "apple", session=session, wait=2)
-    try:
-        response = requests.get(f"{DISCORD_API}/activity/{discord_id}", headers=bot_auth)
-        assert response.status_code == 200, f"expected 200, got {response.status_code}"
-        activity = response.json()["activity"]
-        assert activity is not None, "a running container must produce activity"
-        challenge = activity["challenge"]
-        assert challenge["reference_id"] == f"{example_dojo}/hello/apple", challenge
-        assert challenge["challenge"], f"expected a challenge name, got {challenge}"
-        assert challenge["module"], f"expected a module name, got {challenge}"
-        assert challenge["dojo"], f"expected a dojo name, got {challenge}"
-        assert "description" in challenge, challenge
-    finally:
-        remove_workspace_container(name)
-
-
-def test_discord_activity_invalid_discord_id(bot_auth):
-    for discord_id in ["abc", "0", "-1", str(2**63)]:
-        for endpoint in [f"{DISCORD_API}/activity/{discord_id}", f"{DISCORD_API}/memes/user/{discord_id}"]:
-            response = requests.get(endpoint, headers=bot_auth)
-            assert response.status_code in (400, 404), \
-                f"{endpoint} returned {response.status_code}, expected a 4xx for an invalid id"
-
-
-def test_discord_counts_for_unlinked_discord_id_are_zero(bot_auth):
-    discord_id = 91000000
-    insert_activity(discord_id, "memes", [(1, 1, f"{PAST}-01-01T00:00:00")])
-    insert_activity(discord_id, "thanks", [(2, 1, f"{PAST}-01-01T00:00:00")])
-    try:
-        response = requests.get(f"{DISCORD_API}/memes/user/{discord_id}", headers=bot_auth)
-        assert response.status_code == 200, response.status_code
-        assert response.json() == {"success": True, "memes": 0}, response.json()
-
-        response = requests.get(f"{DISCORD_API}/thanks/user/{discord_id}", headers=bot_auth)
-        assert response.status_code == 200, response.status_code
-        assert response.json() == {"success": True, "thanks": 0}, response.json()
-    finally:
-        delete_activity(discord_id)
-
-
-def test_discord_memes_count_is_not_deduplicated(linked_discord_user, bot_auth):
-    _, _, _, discord_id = linked_discord_user
-    insert_activity(discord_id, "memes", [
-        (1, 1, f"{PAST}-01-01T00:00:00"),
-        (2, 1, f"{PAST}-01-02T00:00:00"),
-        (2, 1, f"{PAST}-01-02T00:00:00"),
-    ])
-    response = requests.get(f"{DISCORD_API}/memes/user/{discord_id}", headers=bot_auth)
-    assert response.status_code == 200, response.status_code
-    assert response.json() == {"success": True, "memes": 3}, response.json()
-
-
-def test_discord_thanks_count_is_deduplicated_by_message_and_source(linked_discord_user, bot_auth):
-    _, _, _, discord_id = linked_discord_user
-    insert_activity(discord_id, "thanks", [
-        (200, 5, f"{PAST}-01-01T00:00:00"),
-        (200, 5, f"{PAST}-01-01T00:00:00"),
-        (200, 6, f"{PAST}-01-01T00:00:00"),
-    ])
-    response = requests.get(f"{DISCORD_API}/thanks/user/{discord_id}", headers=bot_auth)
-    assert response.status_code == 200, response.status_code
-    assert response.json() == {"success": True, "thanks": 2}, response.json()
-
-
-def test_discord_memes_and_thanks_are_isolated_by_type(linked_discord_user, bot_auth):
-    _, _, _, discord_id = linked_discord_user
-    insert_activity(discord_id, "memes", [(300, 9, f"{PAST}-01-01T00:00:00")])
-    insert_activity(discord_id, "thanks", [(300, 9, f"{PAST}-01-01T00:00:00")])
-
-    response = requests.get(f"{DISCORD_API}/memes/user/{discord_id}", headers=bot_auth)
-    assert response.json() == {"success": True, "memes": 1}, response.json()
-
-    response = requests.get(f"{DISCORD_API}/thanks/user/{discord_id}", headers=bot_auth)
-    assert response.json() == {"success": True, "thanks": 1}, response.json()
-
-
-def test_discord_activity_window_filters(linked_discord_user, bot_auth):
-    _, _, _, discord_id = linked_discord_user
-    insert_activity(discord_id, "thanks", [
-        (1, 1, f"{PAST}-01-15T00:00:00"),
-        (2, 1, f"{PAST}-03-15T00:00:00"),
-    ])
-    url = f"{DISCORD_API}/thanks/user/{discord_id}"
-
-    assert requests.get(url, headers=bot_auth).json()["thanks"] == 2
-    assert requests.get(f"{url}?start={PAST}-02-01", headers=bot_auth).json()["thanks"] == 1
-    assert requests.get(f"{url}?start={int(PAST) + 1}-01-01", headers=bot_auth).json()["thanks"] == 0
-
-    insert_activity(discord_id, "memes", [
-        (3, 1, f"{PAST}-01-10T00:00:00"),
-        (4, 1, f"{PAST}-02-10T00:00:00"),
-        (5, 1, f"{PAST}-03-10T00:00:00"),
-    ])
-    response = requests.get(
-        f"{DISCORD_API}/memes/user/{discord_id}?start={PAST}-01-01&end={PAST}-02-28",
-        headers=bot_auth,
-    )
-    assert response.status_code == 200
-    assert response.json()["memes"] == 2
-
-
-def test_discord_activity_invalid_start_400(bot_auth):
-    response = requests.get(f"{DISCORD_API}/memes/user/1234?start=notadate", headers=bot_auth)
-    assert response.status_code == 400, f"expected 400, got {response.status_code}"
-    assert response.json() == {"success": False, "error": "invalid start format"}, response.json()
-
-
-def test_discord_post_activity_requires_every_field(bot_auth):
-    body = {
-        "source_user_id": 1,
-        "guild_id": 2,
-        "channel_id": 3,
-        "message_id": 4,
-        "message_timestamp": f"{PAST}-01-01T00:00:00",
-    }
-    before = activity_count()
-    for activity_type, missing in [("memes", "message_timestamp"), ("thanks", "source_user_id")]:
-        incomplete = {key: value for key, value in body.items() if key != missing}
-        response = requests.post(f"{DISCORD_API}/{activity_type}/user/1234", json=incomplete, headers=bot_auth)
-        assert response.status_code == 400
-        assert response.json()["success"] is False
-
-    for malformed in [[], {**body, "message_id": 2**63}]:
-        response = requests.post(f"{DISCORD_API}/memes/user/1234", json=malformed, headers=bot_auth)
-        assert response.status_code == 400, \
-            f"Malformed Discord activity data must be rejected, but got {response.status_code}"
-
-    assert activity_count() == before, "a rejected POST inserted a discord_user_activity row"
-
-
-def test_discord_post_activity_creates_row_and_returns_count(linked_discord_user, bot_auth):
-    _, _, _, discord_id = linked_discord_user
-    body = {"source_user_id": 1, "guild_id": 2, "channel_id": 3, "message_id": 10,
-            "message_timestamp": f"{PAST}-01-05T00:00:00"}
-
-    response = requests.post(f"{DISCORD_API}/memes/user/{discord_id}", json=body, headers=bot_auth)
-    assert response.status_code == 200, f"{response.status_code} {response.text[:200]}"
-    assert response.json() == {"success": True, "memes": 1}, response.json()
-
-    response = requests.post(f"{DISCORD_API}/memes/user/{discord_id}", json={**body, "message_id": 11},
-                             headers=bot_auth)
-    assert response.status_code == 200, response.status_code
-    assert response.json() == {"success": True, "memes": 2}, response.json()
-
-    rows = db_sql(
-        f"SELECT type, message_id FROM discord_user_activity WHERE user_id = {discord_id} ORDER BY message_id"
-    ).strip().splitlines()
-    assert rows == ["memes|10", "memes|11"], rows
-
-
-def test_discord_post_activity_for_unlinked_id_inserts_but_counts_zero(bot_auth):
-    discord_id = 92000000
-    year = datetime.date.today().year
-    body = {"source_user_id": 7, "guild_id": 2, "channel_id": 3, "message_id": 1,
-            "message_timestamp": f"{year}-06-01T00:00:00"}
-    try:
-        response = requests.post(f"{DISCORD_API}/thanks/user/{discord_id}", json=body, headers=bot_auth)
-        assert response.status_code == 200, f"{response.status_code} {response.text[:200]}"
-        assert response.json() == {"success": True, "thanks": 0}, response.json()
-
-        stored = int(db_sql(f"SELECT count(*) FROM discord_user_activity WHERE user_id = {discord_id}"))
-        assert stored == 1, f"expected the row to be stored anyway, found {stored}"
-
-        leaderboard = requests.get(f"{DISCORD_API}/thanks/leaderboard").json()["leaderboard"]
-        entry = leaderboard_entry(leaderboard, discord_id)
-        assert entry is not None, f"unlinked activity is missing from the public leaderboard: {leaderboard}"
-        assert entry["score"] == 1, entry
-    finally:
-        delete_activity(discord_id)
-
-
-def test_discord_post_activity_bad_timestamp(bot_auth):
-    before = activity_count()
-    body = {"source_user_id": 1, "guild_id": 2, "channel_id": 3, "message_id": 1,
-            "message_timestamp": "notatime"}
-    response = requests.post(f"{DISCORD_API}/memes/user/1234", json=body, headers=bot_auth)
-    assert response.status_code == 400, f"expected 400, got {response.status_code} {response.text[:200]}"
-    assert response.json()["success"] is False, response.json()
-    assert activity_count() == before, "a malformed POST inserted a discord_user_activity row"
-
-
-def test_discord_thanks_leaderboard_is_public_and_defaults_to_current_year():
-    discord_id = 94000000
-    year = datetime.date.today().year
-    insert_activity(discord_id, "thanks", [
-        (1, 1, f"{year - 1}-06-01T00:00:00"),
-        (2, 1, f"{year}-06-01T00:00:00"),
-    ])
-    try:
-        response = requests.get(f"{DISCORD_API}/thanks/leaderboard")
-        assert response.status_code == 200, f"leaderboard is not anonymously readable: {response.status_code}"
-        assert response.json()["success"] is True, response.json()
-        entry = leaderboard_entry(response.json()["leaderboard"], discord_id)
-        assert entry is not None, f"seeded id missing from leaderboard: {response.json()['leaderboard']}"
-        assert entry["score"] == 1, f"the default window must be the current year only, got {entry}"
-
-        response = requests.get(f"{DISCORD_API}/thanks/leaderboard?start={year - 1}-01-01")
-        entry = leaderboard_entry(response.json()["leaderboard"], discord_id)
-        assert entry is not None and entry["score"] == 2, entry
-    finally:
-        delete_activity(discord_id)
-
-
-def test_discord_thanks_leaderboard_invalid_start_400():
-    response = requests.get(f"{DISCORD_API}/thanks/leaderboard?start=garbage")
-    assert response.status_code == 400, f"expected 400, got {response.status_code}"
-    assert response.json() == {"success": False, "error": "Invalid start format"}, response.json()
-
-
-def test_discord_thanks_leaderboard_dedups_and_ignores_memes():
-    discord_id = 95000000
-    year = datetime.date.today().year
-    stamp = f"{year}-06-01T00:00:00"
-    insert_activity(discord_id, "thanks", [(1, 1, stamp), (1, 1, stamp), (1, 2, stamp)])
-    insert_activity(discord_id, "memes", [(1, 1, stamp), (2, 1, stamp), (3, 1, stamp)])
-    try:
-        leaderboard = requests.get(f"{DISCORD_API}/thanks/leaderboard").json()["leaderboard"]
-        entry = leaderboard_entry(leaderboard, discord_id)
-        assert entry is not None, f"seeded id missing from leaderboard: {leaderboard}"
-        assert entry["score"] == 2, f"expected distinct (message, source) thanks only, got {entry}"
-    finally:
-        delete_activity(discord_id)
-
-
-def test_discord_thanks_leaderboard_ordering_and_limit():
-    year = datetime.date.today().year
-    base = 96000000
-    ids = list(range(base, base + 22))
-    db_sql(
-        f"INSERT INTO discord_user_activity {ACTIVITY_COLUMNS} "
-        f"SELECT {base} + i, 1, 'thanks', 1, 1, m, '{year}-06-01T00:00:00' "
-        "FROM generate_series(0, 21) AS i, generate_series(1, 71) AS m WHERE m <= 50 + i"
-    )
-    try:
-        leaderboard = requests.get(f"{DISCORD_API}/thanks/leaderboard").json()["leaderboard"]
-        assert len(leaderboard) == 20, f"leaderboard must be truncated to 20 entries, got {len(leaderboard)}"
-        scores = [entry["score"] for entry in leaderboard]
-        assert scores == sorted(scores, reverse=True), f"leaderboard is not sorted by score: {scores}"
-        top = leaderboard_entry(leaderboard, base + 21)
-        assert top is not None and top["score"] == 71, top
-        for excluded in (base, base + 1):
-            assert leaderboard_entry(leaderboard, excluded) is None, \
-                f"lowest-scoring id {excluded} should have been truncated away"
-    finally:
-        delete_activity(*ids)
-
-
-def test_course_discord_endpoints_unknown_or_inaccessible_dojo_404(side_other_user, random_private_dojo):
-    _, session, _, _ = side_other_user
-    for dojo in ["nonexistent-dojo-xyz", random_private_dojo]:
-        for resource in ["memes", "thanks"]:
-            response = session.get(f"{DISCORD_API}/course/{dojo}/{resource}")
-            assert response.status_code == 404, \
-                f"/course/{dojo}/{resource} returned {response.status_code}, expected 404"
-
-
-def test_course_memes_counts_weekly_buckets(linked_discord_user, side_course_dojo):
-    _, session, _, discord_id = linked_discord_user
-    set_course(side_course_dojo, {"start_date": "2026-01-01T00:00:00"})
-    url = f"{DISCORD_API}/course/{side_course_dojo}/memes"
-
-    insert_activity(discord_id, "memes", [
-        (0, 1, "2025-12-01T00:00:00"),
-        (1, 1, "2026-01-01T12:00:00"),
-        (2, 1, "2026-01-02T12:00:00"),
-        (3, 1, "2026-01-08T12:00:00"),
-        (4, 1, "2026-03-01T00:00:00"),
-        (6, 1, "2026-06-01T00:00:00"),
-    ])
-    response = session.get(url)
-    assert response.status_code == 200, response.status_code
-    assert response.json() == {"success": True, "memes": 3}, response.json()
-
-    insert_activity(discord_id, "memes", [(5, 1, "2026-01-09T00:00:00")])
-    response = session.get(url)
-    assert response.json() == {"success": True, "memes": 3}, \
-        f"a second meme in an already-counted week must not add a bucket: {response.json()}"
-
-
-def test_course_thanks_counts_everything_since_course_start(linked_discord_user, side_course_dojo):
-    _, session, _, discord_id = linked_discord_user
-    set_course(side_course_dojo, {"start_date": "2026-01-01T00:00:00"})
-    insert_activity(discord_id, "thanks", [
-        (1, 1, "2025-12-31T00:00:00"),
-        (2, 1, "2026-05-01T00:00:00"),
-        (2, 1, "2026-05-01T00:00:00"),
-        (3, 1, "2027-01-01T00:00:00"),
-    ])
-    response = session.get(f"{DISCORD_API}/course/{side_course_dojo}/thanks")
-    assert response.status_code == 200, response.status_code
-    assert response.json() == {"success": True, "thanks": 2}, response.json()
 
 
 def test_unlink_discord_deletes_only_the_callers_row_and_is_idempotent(linked_discord_user, side_other_user):
@@ -629,6 +210,22 @@ def discord_oauth_case(user, code):
     )
     output = flask_exec(setup + textwrap.dedent(code) + "\nprint('DISCORD-OAUTH-PASSED')\n")
     assert "DISCORD-OAUTH-PASSED" in output.splitlines(), output
+
+
+def test_discord_stats_endpoints_are_retired(side_user):
+    _, session, _, discord_id = side_user
+    paths = [
+        f"/activity/{discord_id}",
+        f"/memes/user/{discord_id}", f"/thanks/user/{discord_id}",
+        "/thanks/leaderboard",
+        "/course/test/memes", "/course/test/thanks",
+    ]
+    for path in paths:
+        response = session.get(f"{DISCORD_API}{path}")
+        assert response.status_code == 404, f"retired endpoint {path} returned {response.status_code}"
+    for path in [f"/memes/user/{discord_id}", f"/thanks/user/{discord_id}"]:
+        response = session.post(f"{DISCORD_API}{path}", json={})
+        assert response.status_code == 404, f"retired endpoint {path} returned {response.status_code}"
 
 
 def test_discord_oauth_link_relink_and_provider_recovery(random_user):

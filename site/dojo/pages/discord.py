@@ -1,4 +1,5 @@
 import sys
+import logging
 
 import requests
 from flask import request, Blueprint, url_for, redirect, abort, current_app
@@ -14,6 +15,7 @@ from ..utils.awards import update_awards
 
 
 discord = Blueprint("discord", __name__)
+logger = logging.getLogger(__name__)
 
 
 def discord_oauth_serializer():
@@ -67,11 +69,15 @@ def discord_redirect():
         else:
             existing_discord_user.discord_id = discord_id
         db.session.commit()
-        if get_discord_member(discord_id):
-            add_role(discord_id, "White Belt")
-            update_awards(user)
     except IntegrityError:
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400
+
+    try:
+        if get_discord_member(discord_id):
+            add_role(discord_id, "White Belt")
+    except (requests.RequestException, KeyError, RuntimeError) as error:
+        logger.warning("Discord role synchronization failed for user %s (%s)", user_id, type(error).__name__)
+    update_awards(user)
 
     return redirect("/settings#discord")

@@ -3,12 +3,14 @@ import datetime
 import math
 import re
 
+import requests
+
 from flask import Blueprint, Response, render_template, request, abort, stream_with_context
 from sqlalchemy import and_, cast
 from ..utils.user import get_current_user
 from ..utils.decorators import authed_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity, db, Users
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, db, Users
 from ..utils import parse_positive_int
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
@@ -108,7 +110,10 @@ def update_identity(dojo):
         discord_member = get_discord_member(discord_user.discord_id)
         if not discord_member:
             return {"success": True, "warning": "Your Discord account has not joined the official Discord server"}
-        add_role(discord_user.discord_id, discord_role)
+        try:
+            add_role(discord_user.discord_id, discord_role)
+        except (requests.RequestException, KeyError, RuntimeError):
+            return {"success": True, "warning": "Your identity was saved, but your Discord role could not be updated"}
 
     return {"success": True}
 
