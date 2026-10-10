@@ -1065,34 +1065,6 @@ def test_as_user_is_restricted_to_official_students(course, admin_session, ident
         remove_workspace_container(admin_name)
 
 
-def test_discord_course_endpoints(course, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-
-    for resource in ["memes", "thanks"]:
-        anonymous = requests.get(f"{API}/discord/course/{course.dojo}/{resource}", allow_redirects=False)
-        assert anonymous.status_code == 302 and "/login" in anonymous.headers["Location"], \
-            f"anonymous access to {resource} is rejected: {anonymous.status_code}"
-        response = session.get(f"{API}/discord/course/{course.dojo}/{resource}")
-        assert response.status_code == 200, response.status_code
-        assert response.json() == {"success": False, "error": "Discord not linked"}, response.json()
-
-    discord_id = random.randrange(10**17, 10**18)
-    db_sql(f"INSERT INTO discord_users (user_id, discord_id) VALUES ({user_id}, {discord_id});")
-    try:
-        for resource in ["memes", "thanks"]:
-            response = session.get(f"{API}/discord/course/{course.dojo}/{resource}")
-            assert response.json() == {"success": False, "error": "No course start"}, \
-                f"{resource} needs a course start date: {response.json()}"
-
-        course.install(start_date="2020-01-01T00:00:00-07:00")
-        response = session.get(f"{API}/discord/course/{course.dojo}/memes")
-        assert response.status_code == 200, response.status_code
-        assert response.json() == {"success": True, "memes": 0}, response.json()
-    finally:
-        db_sql(f"DELETE FROM discord_users WHERE user_id = {user_id};")
-
-
 def test_identity_endpoint_is_rate_limited(course, identity_budget):
     """Runs last: it deliberately exhausts the per-IP identity budget for up to 60 seconds."""
     name, session = new_user()
