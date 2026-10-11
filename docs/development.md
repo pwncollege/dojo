@@ -1,6 +1,6 @@
 # Development
 
-Before you begin development, please be sure to read the [architecture](./architecture.md) and [deployment](./deployment.md) documentation.
+Before you begin development, please be sure to read the [architecture](./architecture.md) and [deployment](./deployment.md) documentation. Please make sure your Docker installation includes the buildx plugin - it should be available through your distro's package manager.
 
 ## Quick Development Setup
 
