@@ -126,7 +126,7 @@ if [ "$(findmnt -nro FSTYPE -- /data/homes)" != "btrfs" ] && [ "$(findmnt -nro F
     losetup "$loop_device" /data/homes/btrfs.img
     mount "$loop_device" /data/homes
 fi
-btrfs quota enable /data/homes
+btrfs quota enable --simple /data/homes
 
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
