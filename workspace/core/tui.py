@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import os
 
 import requests
@@ -7,6 +9,8 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Markdown, Static, Tree
 
+
+DETAILS_DEBOUNCE_SECONDS = 0.1
 
 SECTION_ORDER = {
     "welcome": 0,
@@ -381,7 +385,7 @@ class ChallengeBrowserApp(App):
         self.query_one("#nav-title", Static).update("Dojos")
         self.query_one("#details-title", Static).update("Details")
         if self.selection:
-            self.query_one("#details", Markdown).update(render_details(self.selection))
+            self.show_details(render_details(self.selection))
 
     def show_start_view(self):
         self.choosing_start = True
@@ -407,29 +411,39 @@ class ChallengeBrowserApp(App):
                 "Press `esc` to go back to the challenge picker.",
             ])
         )
-        self.query_one("#details", Markdown).update(description)
+        self.show_details(description)
+
+    def show_details(self, markdown, delay=0):
+        self.run_worker(functools.partial(self.render_details_markdown, markdown, delay), group="details", exclusive=True)
+
+    async def render_details_markdown(self, markdown, delay):
+        if delay:
+            await asyncio.sleep(delay)
+        await self.query_one("#details", Markdown).update(markdown)
 
     def reload(self):
         self.choosing_start = False
         self.show_browser_view()
+        self.workers.cancel_group(self, "modules")
+        self.selection = None
         tree = self.query_one("#tree", Tree)
-        details = self.query_one("#details", Markdown)
-        status = self.query_one("#status", Static)
-        status.update("Loading dojos...")
-        details.update("Loading...")
-        try:
-            dojos = self.client.load_dojos()
-        except Exception as error:
-            tree.clear()
-            details.update(f"# Failed to load catalog\n\n`{error}`")
-            status.update("Load failed")
-            return
-
         tree.clear()
         tree.root.label = "Challenge Browser"
         tree.root.data = {"kind": "root"}
         tree.root.expand()
-        self.selection = None
+        self.query_one("#status", Static).update("Loading dojos...")
+        self.show_details("Loading...")
+        self.run_worker(self.load_catalog(), group="catalog", exclusive=True)
+
+    async def load_catalog(self):
+        tree = self.query_one("#tree", Tree)
+        status = self.query_one("#status", Static)
+        try:
+            dojos = await asyncio.to_thread(self.client.load_dojos)
+        except Exception as error:
+            self.show_details(f"# Failed to load catalog\n\n`{error}`")
+            status.update("Load failed")
+            return
 
         for dojo in dojos:
             dojo_node = tree.root.add(
@@ -446,12 +460,12 @@ class ChallengeBrowserApp(App):
             status.update("Use arrows to browse and enter to start")
             return
 
-        details.update("# No dojos available")
+        self.show_details("# No dojos available")
         status.update("No dojos available")
 
     def update_selection(self, data):
         self.selection = data
-        self.query_one("#details", Markdown).update(render_details(data))
+        self.show_details(render_details(data), delay=DETAILS_DEBOUNCE_SECONDS)
         status = self.query_one("#status", Static)
         if data["kind"] == "challenge":
             status.update("Enter opens mode picker, s starts standard, p starts practice")
@@ -475,28 +489,39 @@ class ChallengeBrowserApp(App):
 
     def on_tree_node_expanded(self, event):
         data = event.node.data
-        if not data or data.get("loaded"):
+        if not data or data["kind"] != "dojo" or data.get("loaded") or data.get("loading"):
+            return
+        data["loading"] = True
+        self.run_worker(self.load_modules(event.node), group="modules")
+
+    def is_browsing(self, node):
+        cursor = self.query_one("#tree", Tree).cursor_node
+        return not self.choosing_start and cursor is not None and (cursor is node or cursor.parent is node)
+
+    async def load_modules(self, dojo_node):
+        data = dojo_node.data
+        dojo = data["dojo"]
+        status = self.query_one("#status", Static)
+        status.update(f"Loading modules for {display_name(dojo, 'dojo')}...")
+        try:
+            modules = await asyncio.to_thread(self.client.load_dojo_modules, dojo["id"])
+        except Exception as error:
+            data.pop("loading")
+            browsing = self.is_browsing(dojo_node)
+            self.reset_node(dojo_node)
+            dojo_node.add_leaf(f"Load failed: {error}", {"kind": "error"})
+            if browsing:
+                self.show_details(f"# Failed to load\n\n`{error}`")
+                status.update("Load failed")
             return
 
-        status = self.query_one("#status", Static)
-        details = self.query_one("#details", Markdown)
-
-        try:
-            if data["kind"] == "dojo":
-                dojo = data["dojo"]
-                status.update(f"Loading modules for {display_name(dojo, 'dojo')}...")
-                modules = self.client.load_dojo_modules(dojo["id"])
-                self.populate_dojo_modules(event.node, modules)
-                if self.selection is data:
-                    self.update_selection(event.node.data)
-                status.update("Use arrows to browse and enter to start")
-                return
-
-        except Exception as error:
-            self.reset_node(event.node)
-            event.node.add_leaf(f"Load failed: {error}", {"kind": "error"})
-            details.update(f"# Failed to load\n\n`{error}`")
-            status.update("Load failed")
+        data.pop("loading")
+        browsing = self.is_browsing(dojo_node)
+        self.populate_dojo_modules(dojo_node, modules)
+        if self.selection is data:
+            self.update_selection(dojo_node.data)
+        if browsing:
+            status.update("Use arrows to browse and enter to start")
 
     def action_reload(self):
         self.reload()
