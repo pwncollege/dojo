@@ -425,6 +425,12 @@ class ChallengeBrowserApp(App):
         self.choosing_start = False
         self.show_browser_view()
         self.workers.cancel_group(self, "modules")
+        self.selection = None
+        tree = self.query_one("#tree", Tree)
+        tree.clear()
+        tree.root.label = "Challenge Browser"
+        tree.root.data = {"kind": "root"}
+        tree.root.expand()
         self.query_one("#status", Static).update("Loading dojos...")
         self.show_details("Loading...")
         self.run_worker(self.load_catalog(), group="catalog", exclusive=True)
@@ -435,16 +441,9 @@ class ChallengeBrowserApp(App):
         try:
             dojos = await asyncio.to_thread(self.client.load_dojos)
         except Exception as error:
-            tree.clear()
             self.show_details(f"# Failed to load catalog\n\n`{error}`")
             status.update("Load failed")
             return
-
-        tree.clear()
-        tree.root.label = "Challenge Browser"
-        tree.root.data = {"kind": "root"}
-        tree.root.expand()
-        self.selection = None
 
         for dojo in dojos:
             dojo_node = tree.root.add(
@@ -495,6 +494,10 @@ class ChallengeBrowserApp(App):
         data["loading"] = True
         self.run_worker(self.load_modules(event.node), group="modules")
 
+    def is_browsing(self, node):
+        cursor = self.query_one("#tree", Tree).cursor_node
+        return not self.choosing_start and cursor is not None and (cursor is node or cursor.parent is node)
+
     async def load_modules(self, dojo_node):
         data = dojo_node.data
         dojo = data["dojo"]
@@ -504,17 +507,21 @@ class ChallengeBrowserApp(App):
             modules = await asyncio.to_thread(self.client.load_dojo_modules, dojo["id"])
         except Exception as error:
             data.pop("loading")
+            browsing = self.is_browsing(dojo_node)
             self.reset_node(dojo_node)
             dojo_node.add_leaf(f"Load failed: {error}", {"kind": "error"})
-            self.show_details(f"# Failed to load\n\n`{error}`")
-            status.update("Load failed")
+            if browsing:
+                self.show_details(f"# Failed to load\n\n`{error}`")
+                status.update("Load failed")
             return
 
         data.pop("loading")
+        browsing = self.is_browsing(dojo_node)
         self.populate_dojo_modules(dojo_node, modules)
         if self.selection is data:
             self.update_selection(dojo_node.data)
-        status.update("Use arrows to browse and enter to start")
+        if browsing:
+            status.update("Use arrows to browse and enter to start")
 
     def action_reload(self):
         self.reload()
