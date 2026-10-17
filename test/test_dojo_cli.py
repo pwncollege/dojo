@@ -119,6 +119,18 @@ def _destroy_probe_volume(name):
     )
 
 
+def _run_watchdog_container_cleanup(*command):
+    deadline = time.monotonic() + 30
+    while True:
+        result = dojo_run("docker", "exec", *command, check=False)
+        output = result.stdout + result.stderr
+        if "Another container cleanup is running; skipping" not in output:
+            return result
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"watchdog container cleanup lock remained busy:\n{output[-2000:]}")
+        time.sleep(0.5)
+
+
 def _rerun_dojo_init():
     # dojo-init truncates ssh_known_hosts before re-scanning github, so a flaky lookup here would
     # break every later dojo clone in the suite.
@@ -1216,7 +1228,7 @@ def test_watchdog_reaps_old_user_containers(cli_user, example_dojo):
         "globals_ = {'__file__': '/usr/local/bin/docker_remove_containers', '__name__': '__main__'}\n"
         "exec(open('/usr/local/bin/docker_remove_containers').read(), globals_)\n"
     )
-    result = dojo_run("docker", "exec", "-i", "watchdog", "python3", "-c", script, check=False)
+    result = _run_watchdog_container_cleanup("-i", "watchdog", "python3", "-c", script)
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
     remaining = dojo_run("docker", "ps", "-a", "--format", "{{.Names}}").stdout.split()
@@ -1233,7 +1245,7 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     outer_container = get_outer_container_for(container)
     infrastructure = {"site", "db", "cache", "nginx", "homefs", "watchdog"}
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers", check=False)
+    result = _run_watchdog_container_cleanup("watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
 
@@ -1249,7 +1261,7 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
     container = f"user_{get_user_id(name)}"
     host = get_outer_container_for(container)
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers")
+    result = _run_watchdog_container_cleanup("watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
     swept = re.findall(r"Removing docker containers on (\S+)", output)
     assert swept, "no docker daemon was swept, so no user container can ever be reaped"
