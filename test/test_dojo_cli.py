@@ -1263,6 +1263,7 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
 
     result = _run_watchdog_container_cleanup("watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
+    assert result.returncode == 0, output[-2000:]
     swept = re.findall(r"Removing docker containers on (\S+)", output)
     assert swept, "no docker daemon was swept, so no user container can ever be reaped"
 
