@@ -1,4 +1,5 @@
 import datetime
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import string
 import subprocess
 import sys
 import time
+from unittest.mock import Mock
 
 import pytest
 import requests
@@ -30,6 +32,7 @@ from utils import (
 
 
 PULL_IMAGES_SCRIPT = "/opt/pwn.college/site/dojo/scripts/pull_images.py"
+DOJO_CLI = Path(__file__).resolve().parents[1] / "workspace/core/dojo-cli.py"
 
 SPEC_TEMPLATE = """
 id: {dojo_id}
@@ -46,6 +49,19 @@ modules:
 
 def _rand(k=8):
     return "".join(random.choices(string.ascii_lowercase, k=k))
+
+
+def _load_workspace_dojo_cli(monkeypatch, api_base):
+    if api_base is None:
+        monkeypatch.delenv("DOJO_API", raising=False)
+    else:
+        monkeypatch.setenv("DOJO_API", api_base)
+    monkeypatch.setenv("DOJO_AUTH_TOKEN", "workspace-token")
+    monkeypatch.setenv("DOJO_HOST", "dojo.example")
+    spec = importlib.util.spec_from_file_location(f"workspace_dojo_cli_{_rand()}", DOJO_CLI)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _config_env(container=None):
@@ -101,6 +117,18 @@ def _destroy_probe_volume(name):
         f"/data/homes/{name}; do btrfs subvolume delete \"$subvolume\" 2>/dev/null; done; true",
         check=False,
     )
+
+
+def _run_watchdog_container_cleanup(*command):
+    deadline = time.monotonic() + 30
+    while True:
+        result = dojo_run("docker", "exec", *command, check=False)
+        output = result.stdout + result.stderr
+        if "Another container cleanup is running; skipping" not in output:
+            return result
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"watchdog container cleanup lock remained busy:\n{output[-2000:]}")
+        time.sleep(0.5)
 
 
 def _rerun_dojo_init():
@@ -207,6 +235,50 @@ def test_deploy_discord_secret_scope(tmp_path):
         "DISCORD_CLIENT_SECRET=operator-discord-secret"
     )
     assert "DISCORD_CLIENT_SECRET=test-discord-client-secret" in testing
+
+
+@pytest.mark.parametrize(("api_override", "api_base"), [
+    (None, "http://pwn.college:80/pwncollege_api/v1"),
+    ("http://site:8000/pwncollege_api/v1", "http://site:8000/pwncollege_api/v1"),
+])
+def test_workspace_dojo_cli_routes_get_and_post_requests_to_configured_api(
+    monkeypatch, api_override, api_base
+):
+    dojo_cli = _load_workspace_dojo_cli(monkeypatch, api_override)
+    get_response = Mock(ok=True)
+    get_response.json.return_value = {"id": 42, "name": "hacker"}
+    post_response = Mock(ok=True)
+    post_response.json.return_value = {"success": True}
+    get = Mock(return_value=get_response)
+    post = Mock(return_value=post_response)
+    monkeypatch.setattr(dojo_cli.requests, "get", get)
+    monkeypatch.setattr(dojo_cli.requests, "post", post)
+
+    dojo_cli.whoami()
+    with pytest.raises(SystemExit) as exit_info:
+        dojo_cli.start_challenge("course", "intro", "apple", False)
+
+    assert exit_info.value.code == 0
+    headers = {
+        "Authorization": "Bearer workspace-token",
+        "Host": "dojo.example",
+    }
+    get.assert_called_once_with(
+        f"{api_base}/users/me",
+        headers=headers,
+        timeout=5.0,
+    )
+    post.assert_called_once_with(
+        f"{api_base}/docker",
+        headers=headers,
+        json={
+            "dojo": "course",
+            "module": "intro",
+            "challenge": "apple",
+            "practice": False,
+        },
+        timeout=5.0,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -1156,7 +1228,7 @@ def test_watchdog_reaps_old_user_containers(cli_user, example_dojo):
         "globals_ = {'__file__': '/usr/local/bin/docker_remove_containers', '__name__': '__main__'}\n"
         "exec(open('/usr/local/bin/docker_remove_containers').read(), globals_)\n"
     )
-    result = dojo_run("docker", "exec", "-i", "watchdog", "python3", "-c", script, check=False)
+    result = _run_watchdog_container_cleanup("-i", "watchdog", "python3", "-c", script)
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
     remaining = dojo_run("docker", "ps", "-a", "--format", "{{.Names}}").stdout.split()
@@ -1173,7 +1245,7 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     outer_container = get_outer_container_for(container)
     infrastructure = {"site", "db", "cache", "nginx", "homefs", "watchdog"}
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers", check=False)
+    result = _run_watchdog_container_cleanup("watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
 
@@ -1189,8 +1261,9 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
     container = f"user_{get_user_id(name)}"
     host = get_outer_container_for(container)
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers")
+    result = _run_watchdog_container_cleanup("watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
+    assert result.returncode == 0, output[-2000:]
     swept = re.findall(r"Removing docker containers on (\S+)", output)
     assert swept, "no docker daemon was swept, so no user container can ever be reaped"
 

@@ -285,7 +285,9 @@ services:
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - DOJO_SSH_SERVICE_KEY=${DOJO_SSH_SERVICE_KEY}
+      - DOJO_API=http://site:8000/pwncollege_api/v1
       - DOJO_HOST=${DOJO_HOST}
+      - DOJO_ENV=${DOJO_ENV}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
     ports:

@@ -1,13 +1,18 @@
+import base64
 import datetime
+
 from flask import request, session
 from flask_restx import Namespace, Resource
-from ...models import Users, db, get_config, verify_password
-from ...utils import validators, email, registration_visible, unserialize
-from ...utils.validators import ValidationError
-from ...utils.email import can_send_mail
-from ...utils.decorators import ratelimit
 from itsdangerous.exc import BadSignature, BadTimeSignature, SignatureExpired
-import base64
+from sqlalchemy.exc import IntegrityError
+
+from .user import ssh_service_token
+from ...models import SSHKeys, Users, db, get_config, verify_password
+from ...utils import email, registration_visible, unserialize, validators
+from ...utils.decorators import ratelimit
+from ...utils.email import can_send_mail
+from ...utils.ssh_key import InvalidKeyError, normalize_offered_ssh_key
+from ...utils.validators import ValidationError
 
 auth_namespace = Namespace("auth", description="Authentication endpoints")
 
@@ -58,8 +63,26 @@ class Register(Resource):
         if not registration_visible():
             return {"success": False, "errors": ["Registration is currently disabled"]}, 403
 
-        req = request.get_json()
+        req = request.get_json(silent=True)
+        if not isinstance(req, dict):
+            return {"success": False, "errors": ["Invalid request body"]}, 400
+        if any(
+            field in req and not isinstance(req[field], str)
+            for field in ("name", "email", "password", "registration_code")
+        ) or any(
+            req.get(field) is not None and not isinstance(req[field], str)
+            for field in ("website", "affiliation", "country")
+        ):
+            return {"success": False, "errors": ["Invalid request body"]}, 400
+
         errors = []
+        try:
+            ssh_token = ssh_service_token()
+        except Exception:
+            return {"success": False, "error": "Failed to authenticate SSH service token."}, 401
+        if ssh_token is not None and ssh_token != "ssh-onboarding":
+            return {"success": False, "error": "Failed to authenticate SSH service token."}, 401
+        ssh_service_request = ssh_token is not None
 
         # Get registration data
         name = req.get("name", "").strip()
@@ -69,6 +92,13 @@ class Register(Resource):
         affiliation = req.get("affiliation")
         country = req.get("country")
 
+        ssh_key = None
+        if ssh_service_request:
+            try:
+                ssh_key = normalize_offered_ssh_key(req.get("key_type"), req.get("key_base64"))
+            except (InvalidKeyError, NotImplementedError) as error:
+                errors.append(f"Invalid SSH key: {error}")
+
         # Check user limit
         num_users_limit = int(get_config("num_users", default=0))
         num_users = Users.query.filter_by(banned=False, hidden=False).count()
@@ -76,7 +106,7 @@ class Register(Resource):
             return {"success": False, "errors": [f"Reached maximum users ({num_users_limit})"]}, 403
 
         failed = registration_errors(name, email_address, password)
-        errors = [message for code, message in REGISTRATION_ERRORS.items() if code in failed]
+        errors.extend(message for code, message in REGISTRATION_ERRORS.items() if code in failed)
 
         if website and not validators.validate_url(website):
             errors.append("Website must be a valid URL")
@@ -108,8 +138,16 @@ class Register(Resource):
         if country:
             user.country = country
 
-        db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.add(user)
+            db.session.flush()
+            if ssh_service_request:
+                db.session.add(SSHKeys(user_id=user.id, value=ssh_key))
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            error = "SSH key, username, or email is already in use" if ssh_service_request else "Username or email is already in use"
+            return {"success": False, "errors": [error]}, 400
 
         # Send verification email if configured
         if get_config("verify_emails") and can_send_mail():
@@ -122,12 +160,12 @@ class Register(Resource):
             if can_send_mail():
                 email.successful_registration_notification(user.email)
 
-        # Set session
-        session["id"] = user.id
-        session["name"] = user.name
-        session["type"] = user.type
-        session["verified"] = verified
-        session.permanent = True
+        if not ssh_service_request:
+            session["id"] = user.id
+            session["name"] = user.name
+            session["type"] = user.type
+            session["verified"] = verified
+            session.permanent = True
 
         return {
             "success": True,

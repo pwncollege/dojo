@@ -1,4 +1,5 @@
 import datetime
+from functools import wraps
 
 from flask_restx import Namespace, Resource
 from flask import current_app, request, session
@@ -19,26 +20,39 @@ SELF_FIELDS = ("name", "email", "password", "website", "affiliation", "country",
 TRUTHY = {"t", "T", "true", "True", "TRUE", "1", 1, True}
 FALSY = {"f", "F", "false", "False", "FALSE", "0", 0, False}
 
+
+def ssh_service_token():
+    auth_header = request.headers.get("Authorization", "")
+    prefix = f"Bearer {SSH_AUTH_PREFIX}"
+    if not auth_header.startswith(prefix):
+        return None
+    token = auth_header[len(prefix):].strip()
+    if not token:
+        raise ValueError
+    return URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+
+
 def authed_only_ssh(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return func(*args, **kwargs)
-        if not auth_header.startswith("Bearer "):
-            return func(*args, **kwargs)
-        token = auth_header[len("Bearer "):].strip()
-        if not token.startswith(SSH_AUTH_PREFIX):
-            return func(*args, **kwargs)
-        token = token[len(SSH_AUTH_PREFIX):].strip()
         try:
-            user_id, token_tag = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
-            assert token_tag == "ssh-tui"
+            token = ssh_service_token()
+            if token is not None:
+                if not isinstance(token, (list, tuple)) or len(token) != 2:
+                    raise ValueError
+                user_id, token_tag = token
+                if not isinstance(user_id, int) or isinstance(user_id, bool) or token_tag != "ssh-tui":
+                    raise ValueError
         except Exception:
             return {"success": False, "error": "Failed to authenticate ssh service token."}, 401
-        user = Users.query.filter_by(id=user_id).first()
+        if token is None:
+            return func(*args, **kwargs)
+        user = Users.query.filter_by(id=user_id, banned=False).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404
+        previous_session = dict(session)
         try:
+            session.clear()
             session.update({
                 "id": user.id,
                 "name": user.name,
@@ -47,9 +61,8 @@ def authed_only_ssh(func):
             })
             return func(*args, **kwargs)
         finally:
-            for k in ("id", "name", "type", "verified"):
-                session.pop(k, None)
-        return func(*args, **kwargs)
+            session.clear()
+            session.update(previous_session)
     return wrapper
 
 

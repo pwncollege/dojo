@@ -1,11 +1,14 @@
 ChallengeResponseAuthentication no
 PasswordAuthentication no
 UsePAM yes
+UnusedConnectionTimeout 60
 
 Subsystem sftp    /run/dojo/libexec/sftp-server
 
 Match User hacker
-      AuthorizedKeysCommand /opt/sshd/auth.py
+      AuthorizedKeysCommand /opt/sshd/auth.py %t %k
       AuthorizedKeysCommandUser root
+      DisableForwarding yes
+      AllowAgentForwarding no
       X11Forwarding no
       AllowTcpForwarding no
