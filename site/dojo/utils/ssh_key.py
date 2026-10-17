@@ -20,4 +20,6 @@ def normalize_ssh_key(key_value):
 def normalize_offered_ssh_key(key_type, key_base64):
     if not isinstance(key_type, str) or not isinstance(key_base64, str):
         raise InvalidKeyError("SSH key type and data must be strings")
+    if any(character.isspace() for character in key_type + key_base64):
+        raise InvalidKeyError("SSH key type and data must not contain whitespace")
     return normalize_ssh_key(f"{key_type} {key_base64}")

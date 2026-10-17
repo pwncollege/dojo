@@ -66,6 +66,14 @@ class Register(Resource):
         req = request.get_json(silent=True)
         if not isinstance(req, dict):
             return {"success": False, "errors": ["Invalid request body"]}, 400
+        if any(
+            field in req and not isinstance(req[field], str)
+            for field in ("name", "email", "password", "registration_code")
+        ) or any(
+            req.get(field) is not None and not isinstance(req[field], str)
+            for field in ("website", "affiliation", "country")
+        ):
+            return {"success": False, "errors": ["Invalid request body"]}, 400
 
         errors = []
         try:

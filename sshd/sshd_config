@@ -9,5 +9,6 @@ Match User hacker
       AuthorizedKeysCommand /opt/sshd/auth.py %t %k
       AuthorizedKeysCommandUser root
       DisableForwarding yes
+      AllowAgentForwarding no
       X11Forwarding no
       AllowTcpForwarding no

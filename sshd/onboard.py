@@ -38,7 +38,8 @@ class OnboardingClient:
         if not self.ssh_key:
             raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
         self.dojo_host = os.environ.get("DOJO_HOST") or "pwn.college"
-        self.client_ip = (os.environ.get("SSH_CONNECTION") or "").split(maxsplit=1)[0]
+        ssh_connection = (os.environ.get("SSH_CONNECTION") or "").split()
+        self.client_ip = ssh_connection[0] if ssh_connection else ""
         self.api_base = os.environ.get("DOJO_API") or "http://site:8000/pwncollege_api/v1"
         self.scheme = "https" if os.environ.get("DOJO_ENV") == "production" else "http"
         self.ssh_key_settings_url = f"{self.scheme}://{self.dojo_host}/settings#ssh-key"
@@ -157,7 +158,8 @@ class OnboardingApp(App):
     }
 
     #status {
-        height: 1;
+        height: auto;
+        min-height: 1;
         padding: 0 1;
         background: #272727;
         color: #00a3e0;

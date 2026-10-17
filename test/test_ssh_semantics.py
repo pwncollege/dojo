@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import json
 import os
 import random
@@ -18,11 +19,13 @@ from utils import (
     DOJO_URL,
     db_sql,
     dojo_run,
+    flask_exec,
     get_outer_container_for,
     get_user_id,
     login,
     parse_csrf_token,
     remove_workspace_container,
+    remove_workspace_home,
     start_challenge,
     workspace_run,
 )
@@ -70,6 +73,15 @@ def stored_key_values(user_name):
 
 def authorized_keys_lines():
     return dojo_run("docker", "exec", "sshd", "/opt/sshd/auth.py").stdout.splitlines()
+
+
+def sshd_agent_sockets():
+    result = dojo_run(
+        "docker", "exec", "sshd", "find", "/tmp", "-type", "s",
+        "-path", "/tmp/ssh-*/agent.*", "-print",
+    )
+    assert result.returncode == 0, result.stderr
+    return set(result.stdout.splitlines())
 
 
 def offered_key_line(public_key):
@@ -191,6 +203,23 @@ signer = BackdatedSigner if backdate else itsdangerous.TimestampSigner
 print(URLSafeTimedSerializer(secret, signer=signer).dumps(payload))
 """
 
+_SSHD_REGISTER_SCRIPT = """
+import importlib.util, json, os, sys
+
+spec = importlib.util.spec_from_file_location("onboard", "/opt/sshd/onboard.py")
+onboard = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(onboard)
+client = onboard.OnboardingClient(sys.argv[4], sys.argv[5])
+result = client.register(sys.argv[1], sys.argv[2], sys.argv[3])
+print(json.dumps({
+    "api_base": client.api_base,
+    "dojo_api": os.environ.get("DOJO_API"),
+    "dojo_env": os.environ.get("DOJO_ENV"),
+    "scheme": client.scheme,
+    "result": result,
+}))
+"""
+
 
 def mint_ssh_token(payload, *, secret="", backdate=0):
     result = dojo_run("docker", "exec", "site", "python3", "-c", _MINT_TOKEN_SCRIPT,
@@ -203,13 +232,106 @@ def ssh_token_header(payload, **kwargs):
 
 
 def register_request(*, headers, payload, session=None):
+    return raw_register_request(headers=headers, session=session, json=payload)
+
+
+def raw_register_request(*, headers, session=None, **kwargs):
     client = session or requests
-    for _ in range(4):
-        response = client.post(REGISTER_ENDPOINT, headers=headers, json=payload)
+    for _ in range(10):
+        response = client.post(REGISTER_ENDPOINT, headers=headers, **kwargs)
         if response.status_code != 429:
             return response
-        time.sleep(2)
+        time.sleep(1)
     return response
+
+
+def user_count(name=None):
+    where = "" if name is None else f" WHERE name = '{name}'"
+    return int(db_sql(f"SELECT count(*) FROM users{where}"))
+
+
+def ssh_key_count(value):
+    return int(db_sql(f"SELECT count(*) FROM ssh_keys WHERE value = '{normalized(value)}'"))
+
+
+def config_values(keys):
+    output = flask_exec(
+        "import json\n"
+        "from dojo.models import get_config\n"
+        f"print(json.dumps({{key: get_config(key) for key in {keys!r}}}))\n"
+    )
+    return json.loads(output.strip().splitlines()[-1])
+
+
+def set_config_values(values):
+    flask_exec(
+        "from dojo.models import set_config\n"
+        f"for key, value in {values!r}.items():\n"
+        "    set_config(key, value)\n"
+    )
+
+
+@contextlib.contextmanager
+def server_config(**overrides):
+    original = config_values(list(overrides))
+    set_config_values(overrides)
+    if config_values(list(overrides)) != overrides:
+        set_config_values(original)
+        pytest.skip("this deployment does not propagate config changes made outside the server")
+    try:
+        yield
+    finally:
+        set_config_values(original)
+
+
+def transcript_text(path):
+    return path.read_bytes().decode(errors="replace") if path.exists() else ""
+
+
+def await_transcript(path, expected, process, *, start=0, timeout=60):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        transcript = transcript_text(path)
+        if expected in transcript[start:]:
+            return transcript
+        assert process.poll() is None, transcript[-2000:]
+        time.sleep(0.2)
+    pytest.fail(f"timed out waiting for {expected!r}: {transcript_text(path)[-2000:]}")
+
+
+def send_ssh_input(process, value):
+    assert process.poll() is None
+    process.stdin.write(value)
+    process.stdin.flush()
+
+
+def await_transcript_quiescence(
+    transcript, process, *, previous_size=None, quiet_seconds=0.4, timeout=15
+):
+    last_size = transcript.stat().st_size
+    last_change = time.monotonic()
+    rendered = previous_size is None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        assert process.poll() is None, transcript_text(transcript)[-2000:]
+        current_size = transcript.stat().st_size
+        if current_size != last_size:
+            last_size = current_size
+            last_change = time.monotonic()
+        if previous_size is not None and current_size > previous_size:
+            rendered = True
+        if rendered and time.monotonic() - last_change >= quiet_seconds:
+            return
+        time.sleep(0.1)
+    pytest.fail(f"SSH interface did not settle: {transcript_text(transcript)[-2000:]}")
+
+
+def send_ssh_key_and_await_render(process, transcript, key, timeout=15):
+    previous_size = transcript.stat().st_size
+    send_ssh_input(process, key)
+    await_transcript_quiescence(
+        transcript, process, previous_size=previous_size, timeout=timeout
+    )
 
 
 def register_user():
@@ -407,6 +529,28 @@ def test_auth_py_routes_unknown_keys_to_onboarding(ssh_keys):
     assert_onboarding_rejects_command(result)
 
 
+def test_auth_py_rejects_malformed_offered_key_arguments(ssh_keys):
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    malformed = {
+        "empty type": ("", key_base64),
+        "empty data": (key_type, ""),
+        "space in type": (f"{key_type} extra", key_base64),
+        "tab in type": (f"{key_type}\textra", key_base64),
+        "newline in type": (f"{key_type}\nssh-rsa", key_base64),
+        "comma in type": (f"{key_type},option", key_base64),
+        "overlong type": ("x" * 65, key_base64),
+        "invalid data character": (key_type, f"{key_base64}!"),
+        "invalid data padding": (key_type, f"{key_base64}==="),
+        "newline in data": (key_type, f"{key_base64}\nAAAA"),
+    }
+
+    for description, (offered_type, offered_data) in malformed.items():
+        result = dojo_run(
+            "docker", "exec", "sshd", "/opt/sshd/auth.py", offered_type, offered_data
+        )
+        assert result.stdout == "", f"{description} produced an authorized_keys line: {result.stdout!r}"
+
+
 def test_unknown_key_can_open_and_quit_onboarding(ssh_keys):
     started = time.time()
     result = ssh_run(
@@ -419,6 +563,146 @@ def test_unknown_key_can_open_and_quit_onboarding(ssh_keys):
     assert time.time() - started < 55, "SSH onboarding hung"
     assert result.returncode == 0, result.stderr
     assert "\x1b[" in result.stdout or "Set up SSH access" in result.stdout, result.stdout[-400:]
+
+
+@pytest.mark.timeout(300)
+def test_unknown_key_onboards_starts_a_challenge_and_enters_workspace(ssh_keys, example_dojo, tmp_path):
+    name = random_name("sshlive")
+    password = random_name("password")
+    key = ssh_keys["ed25519"]
+    transcript = tmp_path / "onboarding.log"
+    process = None
+
+    try:
+        with transcript.open("w") as output:
+            process = subprocess.Popen(
+                [
+                    "ssh", *SSH_BASE_OPTIONS, "-tt", "-i", key["private_file"],
+                    "-p", str(SSH_PORT), f"hacker@{DOJO_SSH_HOST}",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env={**os.environ, "TERM": "xterm-256color"},
+            )
+            await_transcript(transcript, "Set up SSH access", process)
+            send_ssh_input(process, "c")
+            await_transcript(transcript, "Enter username", process)
+            send_ssh_input(process, f"{name}\r")
+            await_transcript(transcript, "Enter email", process)
+            send_ssh_input(process, f"{name}@example.com\r")
+            await_transcript(transcript, "Enter password", process)
+            send_ssh_input(process, f"{password}\r")
+            await_transcript(transcript, "Account created", process, timeout=60)
+            browser_start = len(transcript_text(transcript))
+
+            user_id = get_user_id(name)
+            assert stored_key_values(name) == [normalized(key["public"])]
+            catalog_response = requests.get(
+                DOJOS_ENDPOINT,
+                headers=ssh_token_header([user_id, "ssh-tui"]),
+            )
+            assert catalog_response.status_code == 200, catalog_response.text
+            section_order = {
+                "welcome": 0,
+                "topic": 1,
+                "public": 2,
+                "course": 3,
+                "private": 4,
+                "hidden": 5,
+                "example": 6,
+            }
+            indexed_dojos = list(enumerate(catalog_response.json()["dojos"]))
+            dojos = [
+                dojo for _, dojo in sorted(
+                    indexed_dojos,
+                    key=lambda item: (section_order.get(item[1].get("type"), 100), item[0]),
+                )
+            ]
+            dojo_index = next(index for index, dojo in enumerate(dojos) if dojo["id"] == example_dojo)
+            modules_response = requests.get(
+                f"{DOJOS_ENDPOINT}/{example_dojo}/modules",
+                headers=ssh_token_header([user_id, "ssh-tui"]),
+            )
+            assert modules_response.status_code == 200, modules_response.text
+            modules = modules_response.json()["modules"]
+            module_index = next(index for index, module in enumerate(modules) if module["id"] == "hello")
+            challenges = modules[module_index]["challenges"]
+            challenge_index = next(
+                index for index, challenge in enumerate(challenges) if challenge["id"] == "apple"
+            )
+
+            await_transcript(
+                transcript, "Challenge Browser", process, start=browser_start, timeout=60
+            )
+            await_transcript(
+                transcript,
+                "Use arrows to browse and enter to start",
+                process,
+                start=browser_start,
+                timeout=60,
+            )
+            await_transcript_quiescence(transcript, process)
+            for _ in range(dojo_index):
+                send_ssh_key_and_await_render(process, transcript, "j")
+            navigation_start = len(transcript_text(transcript))
+            send_ssh_input(process, "l")
+            await_transcript(
+                transcript,
+                "Use arrows to browse and enter to start",
+                process,
+                start=navigation_start,
+            )
+            await_transcript_quiescence(transcript, process)
+            send_ssh_key_and_await_render(process, transcript, "l")
+            for _ in range(module_index):
+                send_ssh_key_and_await_render(process, transcript, "j")
+            send_ssh_key_and_await_render(process, transcript, "l")
+            challenge_start = len(transcript_text(transcript))
+            send_ssh_input(process, "l")
+            await_transcript(
+                transcript,
+                "Enter opens mode picker",
+                process,
+                start=challenge_start,
+            )
+            await_transcript_quiescence(transcript, process)
+            for _ in range(challenge_index):
+                send_ssh_key_and_await_render(process, transcript, "j")
+            picker_start = len(transcript_text(transcript))
+            send_ssh_input(process, "\r")
+            await_transcript(
+                transcript,
+                "Choose a mode: s starts standard",
+                process,
+                start=picker_start,
+            )
+            await_transcript_quiescence(transcript, process)
+            start_offset = len(transcript_text(transcript))
+            send_ssh_input(process, "s")
+            await_transcript(transcript, "Starting apple...", process, start=start_offset)
+            await_transcript(transcript, "Connected!", process, start=start_offset, timeout=120)
+            send_ssh_input(process, "printf 'ONBOARD_WORKSPACE=%s\\n' \"$(hostname)\"\nexit\n")
+            result_code = process.wait(timeout=30)
+
+        output = transcript_text(transcript)
+        assert result_code == 0, output[-2000:]
+        assert "ONBOARD_WORKSPACE=hello~apple" in output, output[-2000:]
+        login(name, password)
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            process.wait(timeout=15)
+        if process is not None and process.stdin:
+            try:
+                process.stdin.close()
+            except BrokenPipeError:
+                pass
+        if user_count(name):
+            user_id = get_user_id(name)
+            remove_workspace_container(name)
+            remove_workspace_home(user_id)
 
 
 def test_empty_key_value_rejected(dojo_user, second_user):
@@ -451,6 +735,19 @@ def test_malformed_request_body_rejected(dojo_user):
             assert 400 <= response.status_code < 500, \
                 f"{method.__name__} with {description} returned {response.status_code}"
     assert key_count(name) == 0, "a malformed request created an ssh_keys row"
+
+
+def test_non_string_key_values_are_rejected_cleanly(dojo_user):
+    name, session = dojo_user
+    expected = {"success": False, "error": "ssh_key must be a string"}
+
+    for value in (None, True, 123, [], {}):
+        for method in (session.post, session.delete):
+            response = method(SSH_KEY_ENDPOINT, json={"ssh_key": value})
+            assert response.status_code == 400, \
+                f"{method.__name__} accepted {value!r}: {response.status_code} {response.text}"
+            assert response.json() == expected, response.json()
+    assert key_count(name) == 0
 
 
 def test_key_stays_bound_to_the_first_registering_user(workspace_ssh_user, dojo_user):
@@ -646,6 +943,97 @@ def test_x11_and_tcp_forwarding_are_refused(workspace_ssh_user):
     assert result.returncode != 0, "remote port forwarding was allowed"
     assert "forwarding failed" in result.stderr or "administratively prohibited" in result.stderr, \
         result.stderr
+
+
+def test_agent_forwarding_is_refused(workspace_ssh_user, tmp_path):
+    agent_socket = tmp_path / "agent.sock"
+    existing_server_sockets = sshd_agent_sockets()
+    agent = subprocess.Popen(
+        ["ssh-agent", "-D", "-a", str(agent_socket)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not agent_socket.exists() and agent.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if not agent_socket.exists():
+            if agent.poll() is None:
+                agent.terminate()
+            _, stderr = agent.communicate(timeout=5)
+            pytest.fail(f"ssh-agent did not create its socket: {stderr}")
+        agent_env = {**os.environ, "SSH_AUTH_SOCK": str(agent_socket)}
+        added = subprocess.run(
+            ["ssh-add", workspace_ssh_user.keys["ed25519"]["private_file"]],
+            env=agent_env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert added.returncode == 0, added.stderr
+
+        connection = subprocess.Popen(
+            [
+                "ssh", *SSH_BASE_OPTIONS, "-A",
+                "-i", workspace_ssh_user.keys["ed25519"]["private_file"],
+                "-p", str(SSH_PORT), f"hacker@{DOJO_SSH_HOST}",
+                "if test -S \"${SSH_AUTH_SOCK:-}\"; then echo AGENT_FORWARDED; "
+                "else echo AGENT_BLOCKED; fi; sleep 10",
+            ],
+            env=agent_env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        output = connection.stdout.readline().strip()
+        assert output == "AGENT_BLOCKED", output
+        assert not sshd_agent_sockets() - existing_server_sockets
+        stdout, stderr = connection.communicate(timeout=20)
+        assert connection.returncode == 0, stderr
+        assert "AGENT_FORWARDED" not in stdout, stdout
+    finally:
+        if "connection" in locals() and connection.poll() is None:
+            connection.terminate()
+            connection.communicate(timeout=10)
+        if agent.poll() is None:
+            agent.terminate()
+        agent.communicate(timeout=10)
+
+
+@pytest.mark.timeout(90)
+def test_unused_authenticated_connection_is_closed_within_configured_timeout(workspace_ssh_user):
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            [
+                "ssh", *SSH_BASE_OPTIONS, "-N",
+                "-i", workspace_ssh_user.keys["ed25519"]["private_file"],
+                "-p", str(SSH_PORT), f"hacker@{DOJO_SSH_HOST}",
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=82,
+        )
+    except subprocess.TimeoutExpired as error:
+        pytest.fail(f"unused authenticated connection remained open past 82 seconds: {error}")
+    elapsed = time.monotonic() - started
+    assert 50 <= elapsed < 82, \
+        f"unused connection closed after {elapsed:.1f}s instead of the configured 60s: {result.stderr}"
+
+
+def test_sshd_effective_config_limits_unused_connections_and_passes_offered_keys():
+    effective_config = dojo_run(
+        "docker", "exec", "sshd", "/usr/sbin/sshd.pam", "-T", "-f", "/opt/sshd/sshd_config",
+        "-C", "user=hacker,host=localhost,addr=127.0.0.1",
+    ).stdout.splitlines()
+    assert "unusedconnectiontimeout 60" in effective_config
+    assert "authorizedkeyscommand /opt/sshd/auth.py %t %k" in effective_config
+    assert "disableforwarding yes" in effective_config
+    assert "allowagentforwarding no" in effective_config
 
 
 def test_unknown_key_cannot_forward_docker_socket(ssh_keys, tmp_path):
@@ -960,6 +1348,333 @@ def test_interactive_session_without_a_workspace_offers_the_challenge_tui(dojo_u
         "no full-screen tui was rendered for an interactive session without a workspace"
 
 
+def test_ssh_onboarding_registration_rejects_non_object_bodies_atomically():
+    before = user_count()
+    expected = {"success": False, "errors": ["Invalid request body"]}
+    cases = [
+        ("missing", {}),
+        ("invalid json", {"data": "{", "headers": {"Content-Type": "application/json"}}),
+        ("list", {"json": [{"name": random_name("sshbody")}]}),
+        ("null", {"data": "null", "headers": {"Content-Type": "application/json"}}),
+    ]
+
+    for description, kwargs in cases:
+        headers = ssh_token_header("ssh-onboarding")
+        headers.update(kwargs.pop("headers", {}))
+        response = raw_register_request(headers=headers, **kwargs)
+        assert response.status_code == 400, f"{description}: {response.status_code} {response.text}"
+        assert response.json() == expected, f"{description}: {response.json()}"
+        assert user_count() == before, f"{description} created a user"
+
+
+def test_ssh_onboarding_registration_rejects_malformed_key_fields_atomically(ssh_keys):
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    cases = {
+        "missing type": {"key_base64": key_base64},
+        "missing data": {"key_type": key_type},
+        "null type": {"key_type": None, "key_base64": key_base64},
+        "null data": {"key_type": key_type, "key_base64": None},
+        "non-string type": {"key_type": [key_type], "key_base64": key_base64},
+        "non-string data": {"key_type": key_type, "key_base64": {"data": key_base64}},
+        "type and blob mismatch": {"key_type": "ssh-rsa", "key_base64": key_base64},
+        "space in type": {"key_type": f"{key_type} extra", "key_base64": key_base64},
+        "tab in type": {"key_type": f"{key_type}\textra", "key_base64": key_base64},
+        "type injection": {"key_type": f"{key_type}\nssh-rsa", "key_base64": key_base64},
+        "space in data": {"key_type": key_type, "key_base64": f"{key_base64} extra"},
+        "tab in data": {"key_type": key_type, "key_base64": f"{key_base64}\textra"},
+        "carriage return in data": {"key_type": key_type, "key_base64": f"{key_base64}\rssh-rsa AAAA"},
+        "data injection": {"key_type": key_type, "key_base64": f"{key_base64}\nssh-rsa AAAA"},
+    }
+    before_keys = ssh_key_count(ssh_keys["ed25519"]["public"])
+
+    for description, key_fields in cases.items():
+        name = random_name("sshbadkey")
+        response = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload={
+                "name": name,
+                "email": f"{name}@example.com",
+                "password": random_name("password"),
+                **key_fields,
+            },
+        )
+        assert response.status_code == 400, f"{description}: {response.status_code} {response.text}"
+        assert response.json()["success"] is False, f"{description}: {response.json()}"
+        assert any(error.startswith("Invalid SSH key:") for error in response.json()["errors"]), \
+            f"{description}: {response.json()}"
+        assert user_count(name) == 0, f"{description} created a user"
+        assert ssh_key_count(ssh_keys["ed25519"]["public"]) == before_keys, \
+            f"{description} created an SSH key"
+
+
+def test_ssh_onboarding_registration_rejects_non_string_account_fields_atomically(ssh_keys):
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    cases = {
+        "numeric name": ("name", 42),
+        "list email": ("email", ["user@example.com"]),
+        "object password": ("password", {"password": "secret"}),
+        "list website": ("website", ["https://example.com"]),
+        "object affiliation": ("affiliation", {"name": "example"}),
+        "numeric country": ("country", 42),
+        "null registration code": ("registration_code", None),
+        "boolean registration code": ("registration_code", False),
+    }
+
+    for description, (field, value) in cases.items():
+        name = random_name("sshbadfield")
+        payload = {
+            "name": name,
+            "email": f"{name}@example.com",
+            "password": random_name("password"),
+            "key_type": key_type,
+            "key_base64": key_base64,
+            field: value,
+        }
+        before_users = user_count()
+        before_keys = ssh_key_count(ssh_keys["ed25519"]["public"])
+        response = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload=payload,
+        )
+        assert response.status_code == 400, \
+            f"{description}: {response.status_code} {response.text}"
+        assert response.json() == {"success": False, "errors": ["Invalid request body"]}
+        assert user_count() == before_users, f"{description} created a user"
+        assert ssh_key_count(ssh_keys["ed25519"]["public"]) == before_keys, \
+            f"{description} created an SSH key"
+
+
+def test_ssh_onboarding_registration_accumulates_key_and_account_errors_atomically():
+    before_users = user_count()
+    before_keys = int(db_sql("SELECT count(*) FROM ssh_keys"))
+    response = register_request(
+        headers=ssh_token_header("ssh-onboarding"),
+        payload={
+            "name": "   ",
+            "email": random_name("not-an-email-"),
+            "password": "   ",
+        },
+    )
+    assert response.status_code == 400, response.text
+    errors = response.json()["errors"]
+    assert errors[0].startswith("Invalid SSH key:"), errors
+    assert errors[1:] == [
+        "Please provide a username",
+        "Please enter a valid email address",
+        "Please provide a password",
+    ], errors
+    assert user_count() == before_users
+    assert int(db_sql("SELECT count(*) FROM ssh_keys")) == before_keys
+
+
+def test_registration_separates_catalog_tokens_from_public_bearer_headers(dojo_user, ssh_keys):
+    token_name, _ = dojo_user
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+
+    rejected_headers = {
+        "catalog token": ssh_token_header([get_user_id(token_name), "ssh-tui"]),
+        "empty service token": {"Authorization": "Bearer sk-ssh-service-"},
+    }
+    for description, headers in rejected_headers.items():
+        name = random_name("sshwrongscope")
+        response = register_request(
+            headers=headers,
+            payload={
+                "name": name,
+                "email": f"{name}@example.com",
+                "password": random_name("password"),
+                "key_type": key_type,
+                "key_base64": key_base64,
+            },
+        )
+        assert response.status_code == 401, f"{description}: {response.status_code} {response.text}"
+        assert response.json() == {
+            "success": False,
+            "error": "Failed to authenticate SSH service token.",
+        }
+        assert user_count(name) == 0
+
+    public_name = random_name("sshpublicbearer")
+    password = random_name("password")
+    public_session = requests.Session()
+    public_session.headers["CSRF-Token"] = parse_csrf_token(
+        public_session.get(f"{DOJO_URL}/register").text
+    )
+    response = register_request(
+        session=public_session,
+        headers={"Authorization": "Bearer nonsense"},
+        payload={
+            "name": public_name,
+            "email": f"{public_name}@example.com",
+            "password": password,
+            "key_type": key_type,
+            "key_base64": key_base64,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert key_count(public_name) == 0
+    identity = public_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert identity.status_code == 200, identity.text
+    assert identity.json()["name"] == public_name
+
+
+def test_deployed_sshd_onboarding_client_reaches_internal_registration_api(ssh_keys):
+    name = random_name("sshinternal")
+    password = random_name("password")
+    key_type, key_base64 = normalized(ssh_keys["ecdsa"]["public"]).split()
+
+    result = dojo_run(
+        "docker", "exec", "sshd", "python3", "-c", _SSHD_REGISTER_SCRIPT,
+        name, f"{name}@example.com", password, key_type, key_base64,
+    )
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    site_env = dojo_run(
+        "docker", "exec", "site", "python3", "-c",
+        "import os; print(os.environ.get('DOJO_ENV', ''))",
+    ).stdout.strip()
+    assert payload["api_base"] == "http://site:8000/pwncollege_api/v1", payload
+    assert payload["dojo_api"] == payload["api_base"], payload
+    assert payload["dojo_env"] == site_env, payload
+    assert payload["scheme"] == ("https" if site_env == "production" else "http"), payload
+    assert payload["result"]["success"] is True, payload
+    assert stored_key_values(name) == [normalized(ssh_keys["ecdsa"]["public"])]
+    login(name, password)
+
+
+@pytest.mark.parametrize(
+    "verify_emails, expected_kind, expected_verified",
+    [
+        (True, "verification_email", False),
+        (False, "successful_registration_email", True),
+    ],
+)
+def test_ssh_onboarding_email_uses_forwarded_public_origin(
+    ssh_keys, verify_emails, expected_kind, expected_verified
+):
+    name = random_name("sshemail")
+    password = random_name("password")
+    public_key = normalized(ssh_keys["ed25519"]["public"])
+    key_type, key_base64 = public_key.split()
+    code = f"""
+from flask import current_app
+from itsdangerous.url_safe import URLSafeTimedSerializer
+from unittest.mock import patch
+from dojo.api.v1 import auth as auth_api
+from dojo.config import DOJO_SSH_SERVICE_KEY
+from dojo.models import SSHKeys, Users, db
+
+app = current_app._get_current_object()
+client = app.test_client()
+deliveries = []
+real_get_config = auth_api.get_config
+configured = lambda key, *args, **kwargs: {verify_emails!r} if key == "verify_emails" else real_get_config(key, *args, **kwargs)
+token = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).dumps("ssh-onboarding")
+try:
+    with patch.object(auth_api, "get_config", side_effect=configured), \
+         patch.object(auth_api, "can_send_mail", return_value=True), \
+         patch.object(auth_api.email, "notify", side_effect=lambda kind, addr, url: deliveries.append((kind, addr, url))):
+        response = client.post(
+            "/pwncollege_api/v1/auth/register",
+            headers={{
+                "Authorization": f"Bearer sk-ssh-service-{{token}}",
+                "Host": "dojo.example",
+                "X-Forwarded-Proto": "https",
+            }},
+            json={{
+                "name": {name!r},
+                "email": {f'{name}@example.com'!r},
+                "password": {password!r},
+                "key_type": {key_type!r},
+                "key_base64": {key_base64!r},
+            }},
+        )
+        assert response.status_code == 200, response.get_data(as_text=True)
+        user = Users.query.filter_by(name={name!r}).one()
+        assert user.verified is {expected_verified!r}
+        assert [key.value for key in SSHKeys.query.filter_by(user_id=user.id)] == [{public_key!r}]
+        assert response.get_json()["data"]["verified"] is {expected_verified!r}
+        with client.session_transaction() as browser_session:
+            assert "id" not in browser_session
+        assert len(deliveries) == 1, deliveries
+        assert deliveries[0][0] == {expected_kind!r}, deliveries
+        assert deliveries[0][1] == {f'{name}@example.com'!r}, deliveries
+        assert deliveries[0][2].startswith("https://dojo.example/"), deliveries
+finally:
+    user = Users.query.filter_by(name={name!r}).first()
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+print("SSH-EMAIL-CASE-PASSED")
+"""
+    output = flask_exec(code)
+    assert "SSH-EMAIL-CASE-PASSED" in output.splitlines(), output
+
+
+def test_ssh_onboarding_registration_obeys_registration_policy(ssh_keys):
+    keys = [ssh_keys[name]["public"] for name in ("rsa", "ed25519", "ecdsa")]
+
+    disabled_name = random_name("sshdisabled")
+    disabled_type, disabled_blob = normalized(keys[0]).split()
+    with server_config(registration_visibility="private"):
+        response = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload={
+                "name": disabled_name,
+                "email": f"{disabled_name}@example.com",
+                "password": random_name("password"),
+                "key_type": disabled_type,
+                "key_base64": disabled_blob,
+            },
+        )
+    assert response.status_code == 403, response.text
+    assert response.json() == {"success": False, "errors": ["Registration is currently disabled"]}
+    assert user_count(disabled_name) == 0
+    assert ssh_key_count(keys[0]) == 0
+
+    limited_name = random_name("sshlimited")
+    limited_type, limited_blob = normalized(keys[1]).split()
+    limit = int(db_sql("SELECT count(*) FROM users WHERE banned = false AND hidden = false"))
+    with server_config(num_users=limit):
+        response = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload={
+                "name": limited_name,
+                "email": f"{limited_name}@example.com",
+                "password": random_name("password"),
+                "key_type": limited_type,
+                "key_base64": limited_blob,
+            },
+        )
+    assert response.status_code == 403, response.text
+    assert response.json() == {"success": False, "errors": [f"Reached maximum users ({limit})"]}
+    assert user_count(limited_name) == 0
+    assert ssh_key_count(keys[1]) == 0
+
+    coded_name = random_name("sshcoded")
+    coded_type, coded_blob = normalized(keys[2]).split()
+    coded_payload = {
+        "name": coded_name,
+        "email": f"{coded_name}@example.com",
+        "password": random_name("password"),
+        "key_type": coded_type,
+        "key_base64": coded_blob,
+    }
+    with server_config(registration_code="SeCrEt"):
+        missing = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload=coded_payload,
+        )
+        assert missing.status_code == 400, missing.text
+        assert missing.json()["errors"] == ["Invalid registration code"]
+        assert user_count(coded_name) == 0
+        accepted = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload={**coded_payload, "registration_code": "secret"},
+        )
+    assert accepted.status_code == 200, accepted.text
+    assert stored_key_values(coded_name) == [normalized(keys[2])]
+
+
 def test_ssh_onboarding_registration_creates_account_and_key(ssh_keys):
     name = random_name("sshonboard")
     password = random_name("password")
@@ -983,8 +1698,9 @@ def test_ssh_onboarding_registration_creates_account_and_key(ssh_keys):
     login(name, password)
 
     settings = session.get(f"{DOJO_URL}/settings", allow_redirects=False)
-    assert settings.status_code in (302, 403), \
+    assert settings.status_code == 302, \
         f"onboarding registration left a usable browser session: {settings.status_code}"
+    assert "/login" in settings.headers.get("Location", ""), settings.headers
 
 
 def test_ssh_onboarding_registration_is_atomic(dojo_user, ssh_keys):
@@ -994,10 +1710,14 @@ def test_ssh_onboarding_registration_is_atomic(dojo_user, ssh_keys):
     assert add_ssh_key(owner_session, public_key).status_code == 200
 
     attempts = [
-        (random_name("sshduplicate"), key_base64),
-        (random_name("sshinvalid"), "not-base64"),
+        (
+            random_name("sshduplicate"),
+            key_base64,
+            ["SSH key, username, or email is already in use"],
+        ),
+        (random_name("sshinvalid"), "not-base64", None),
     ]
-    for name, offered_key in attempts:
+    for name, offered_key, expected_errors in attempts:
         response = register_request(
             headers=ssh_token_header("ssh-onboarding"),
             payload={
@@ -1009,9 +1729,49 @@ def test_ssh_onboarding_registration_is_atomic(dojo_user, ssh_keys):
             },
         )
         assert response.status_code == 400, response.text
+        if expected_errors is not None:
+            assert response.json() == {"success": False, "errors": expected_errors}
+        else:
+            assert response.json()["errors"][0].startswith("Invalid SSH key:")
         assert db_sql(f"SELECT count(*) FROM users WHERE name = '{name}'").strip() == "0"
 
     assert stored_key_values(owner_name) == [normalized(public_key)]
+
+
+def test_public_registration_integrity_conflict_is_reported_cleanly(dojo_user):
+    name, _ = dojo_user
+    code = f"""
+from flask import current_app
+from unittest.mock import patch
+from dojo.api.v1 import auth as auth_api
+from dojo.models import Users
+
+app = current_app._get_current_object()
+client = app.test_client()
+with client.session_transaction() as browser_session:
+    browser_session["nonce"] = "test-nonce"
+client.environ_base["HTTP_CSRF_TOKEN"] = "test-nonce"
+with patch.object(auth_api, "registration_errors", return_value=set()):
+    response = client.post(
+        "/pwncollege_api/v1/auth/register",
+        json={{
+            "name": {name!r},
+            "email": {f'{name}@example.com'!r},
+            "password": "password",
+        }},
+    )
+assert response.status_code == 400, response.get_data(as_text=True)
+assert response.get_json() == {{
+    "success": False,
+    "errors": ["Username or email is already in use"],
+}}
+assert Users.query.filter_by(name={name!r}).count() == 1
+with client.session_transaction() as browser_session:
+    assert "id" not in browser_session
+print("PUBLIC-INTEGRITY-CONFLICT-PASSED")
+"""
+    output = flask_exec(code)
+    assert "PUBLIC-INTEGRITY-CONFLICT-PASSED" in output.splitlines(), output
 
 
 def test_ssh_onboarding_registration_rejects_invalid_tokens(ssh_keys):
@@ -1119,6 +1879,11 @@ def test_ssh_service_token_rejects_forged_stale_and_unknown_tokens(dojo_user):
         "wrong secret": mint_ssh_token([user_id, "ssh-tui"], secret="not-the-key"),
         "wrong tag": mint_ssh_token([user_id, "cli-auth-token"]),
         "non-list payload": mint_ssh_token(user_id),
+        "empty list": mint_ssh_token([]),
+        "short list": mint_ssh_token([user_id]),
+        "long list": mint_ssh_token([user_id, "ssh-tui", "extra"]),
+        "string user id": mint_ssh_token([str(user_id), "ssh-tui"]),
+        "boolean user id": mint_ssh_token([True, "ssh-tui"]),
         "expired": mint_ssh_token([user_id, "ssh-tui"], backdate=3600),
     }
     for description, token in unauthorized.items():
@@ -1184,14 +1949,99 @@ def test_ssh_service_token_preserves_existing_browser_session(dojo_user, second_
     assert key_count(other_name) == 0
 
 
+def test_ssh_service_token_replaces_admin_privileges_for_request_and_restores_them(
+    dojo_user, random_private_dojo, admin_session
+):
+    name, _ = dojo_user
+    response = admin_session.get(
+        DOJOS_ENDPOINT,
+        headers=ssh_token_header([get_user_id(name), "ssh-tui"]),
+    )
+    assert response.status_code == 200, response.text
+    visible = [dojo["id"] for dojo in response.json()["dojos"]]
+    assert random_private_dojo not in visible, \
+        "the token user inherited the browser session's admin privileges"
+
+    response = admin_session.get(DOJOS_ENDPOINT)
+    assert response.status_code == 200, response.text
+    visible = [dojo["id"] for dojo in response.json()["dojos"]]
+    assert random_private_dojo in visible, "the admin browser session was not restored"
+
+
+def test_ssh_service_token_restores_session_after_downstream_exception(dojo_user):
+    name, _ = dojo_user
+    user_id = get_user_id(name)
+    token = mint_ssh_token([user_id, "ssh-tui"])
+    code = f"""
+from flask import current_app, session
+from dojo.api.v1.user import authed_only_ssh
+
+app = current_app._get_current_object()
+with app.test_request_context(
+    "/token-exception",
+    headers={{"Authorization": {f'Bearer sk-ssh-service-{token}'!r}}},
+):
+    session.update({{"id": {get_user_id('admin')}, "name": "admin", "custom": "preserved"}})
+    original = dict(session)
+
+    @authed_only_ssh
+    def fail():
+        assert session["id"] == {user_id}
+        assert "custom" not in session
+        raise RuntimeError("downstream failure")
+
+    try:
+        fail()
+    except RuntimeError as error:
+        assert str(error) == "downstream failure"
+    else:
+        raise AssertionError("downstream exception was swallowed")
+    assert dict(session) == original
+print("TOKEN-EXCEPTION-SESSION-PASSED")
+"""
+    output = flask_exec(code)
+    assert "TOKEN-EXCEPTION-SESSION-PASSED" in output.splitlines(), output
+
+
+def test_ssh_service_token_preserves_downstream_404_and_browser_session(
+    dojo_user, second_user, ssh_keys
+):
+    name, browser_session = dojo_user
+    token_name, _ = second_user
+    missing_dojo = random_name("missing-dojo-")
+
+    response = browser_session.get(
+        f"{DOJOS_ENDPOINT}/{missing_dojo}/modules",
+        headers=ssh_token_header([get_user_id(token_name), "ssh-tui"]),
+    )
+    assert response.status_code == 404, response.text
+    assert "Failed to authenticate ssh service token." not in response.text
+
+    response = add_ssh_key(browser_session, ssh_keys["ed25519"]["public"])
+    assert response.status_code == 200, response.text
+    assert key_count(name) == 1
+    assert key_count(token_name) == 0
+
+
 def test_non_ssh_authorization_headers_fall_through_to_session_auth(dojo_user, ssh_keys):
     name, session = dojo_user
 
     response = session.get(DOJOS_ENDPOINT, headers={"Authorization": "Basic Zm9vOmJhcg=="})
     assert response.status_code == 200 and response.json()["success"] is True, response.text
 
+    response = session.get(DOJOS_ENDPOINT, headers={"Authorization": "Bearer nonsense"})
+    assert response.status_code == 200 and response.json()["success"] is True, response.text
+
     response = session.get(DOJOS_ENDPOINT)
     assert response.status_code == 200 and response.json()["success"] is True
+
+    response = requests.post(
+        DOCKER_ENDPOINT,
+        headers={"Authorization": "Bearer nonsense"},
+        json={"dojo": "example", "module": "hello", "challenge": "apple", "practice": False},
+    )
+    assert response.status_code == 403, \
+        f"a non-ssh bearer token did not fall through to anonymous auth: {response.status_code}"
 
     response = requests.post(SSH_KEY_ENDPOINT, headers={"Authorization": "Bearer nonsense"},
                              json={"ssh_key": normalized(ssh_keys["rsa"]["public"])})

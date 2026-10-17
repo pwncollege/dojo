@@ -1,4 +1,5 @@
 import datetime
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import string
 import subprocess
 import sys
 import time
+from unittest.mock import Mock
 
 import pytest
 import requests
@@ -30,6 +32,7 @@ from utils import (
 
 
 PULL_IMAGES_SCRIPT = "/opt/pwn.college/site/dojo/scripts/pull_images.py"
+DOJO_CLI = Path(__file__).resolve().parents[1] / "workspace/core/dojo-cli.py"
 
 SPEC_TEMPLATE = """
 id: {dojo_id}
@@ -46,6 +49,19 @@ modules:
 
 def _rand(k=8):
     return "".join(random.choices(string.ascii_lowercase, k=k))
+
+
+def _load_workspace_dojo_cli(monkeypatch, api_base):
+    if api_base is None:
+        monkeypatch.delenv("DOJO_API", raising=False)
+    else:
+        monkeypatch.setenv("DOJO_API", api_base)
+    monkeypatch.setenv("DOJO_AUTH_TOKEN", "workspace-token")
+    monkeypatch.setenv("DOJO_HOST", "dojo.example")
+    spec = importlib.util.spec_from_file_location(f"workspace_dojo_cli_{_rand()}", DOJO_CLI)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _config_env(container=None):
@@ -207,6 +223,50 @@ def test_deploy_discord_secret_scope(tmp_path):
         "DISCORD_CLIENT_SECRET=operator-discord-secret"
     )
     assert "DISCORD_CLIENT_SECRET=test-discord-client-secret" in testing
+
+
+@pytest.mark.parametrize(("api_override", "api_base"), [
+    (None, "http://pwn.college:80/pwncollege_api/v1"),
+    ("http://site:8000/pwncollege_api/v1", "http://site:8000/pwncollege_api/v1"),
+])
+def test_workspace_dojo_cli_routes_get_and_post_requests_to_configured_api(
+    monkeypatch, api_override, api_base
+):
+    dojo_cli = _load_workspace_dojo_cli(monkeypatch, api_override)
+    get_response = Mock(ok=True)
+    get_response.json.return_value = {"id": 42, "name": "hacker"}
+    post_response = Mock(ok=True)
+    post_response.json.return_value = {"success": True}
+    get = Mock(return_value=get_response)
+    post = Mock(return_value=post_response)
+    monkeypatch.setattr(dojo_cli.requests, "get", get)
+    monkeypatch.setattr(dojo_cli.requests, "post", post)
+
+    dojo_cli.whoami()
+    with pytest.raises(SystemExit) as exit_info:
+        dojo_cli.start_challenge("course", "intro", "apple", False)
+
+    assert exit_info.value.code == 0
+    headers = {
+        "Authorization": "Bearer workspace-token",
+        "Host": "dojo.example",
+    }
+    get.assert_called_once_with(
+        f"{api_base}/users/me",
+        headers=headers,
+        timeout=5.0,
+    )
+    post.assert_called_once_with(
+        f"{api_base}/docker",
+        headers=headers,
+        json={
+            "dojo": "course",
+            "module": "intro",
+            "challenge": "apple",
+            "practice": False,
+        },
+        timeout=5.0,
+    )
 
 
 @pytest.fixture(scope="module")
