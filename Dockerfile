@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-FROM ubuntu:24.04 AS kata-builder
+FROM ubuntu:26.04 AS kata-builder
 
-ENV KATA_VERSION=4.1.0
+ENV KATA_VERSION=4.3.1
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -39,7 +39,7 @@ RUN <<EOF
   ./build-kernel.sh -v "$KERNEL_VERSION" install
 EOF
 
-FROM ubuntu:24.04 AS dojo
+FROM ubuntu:26.04 AS dojo
 
 SHELL ["/bin/bash", "-ceox", "pipefail"]
 
@@ -68,17 +68,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 EOF
 
 RUN <<EOF
-curl -fsSL https://get.docker.com | VERSION=27.5.1 sh
+curl -fsSL https://get.docker.com | VERSION=29.9.2 sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
 COPY etc/docker/daemon*.json /tmp/
 RUN cp /tmp/daemon.json /etc/docker/daemon.json
+COPY etc/containerd/config.toml /etc/containerd/config.toml
 
 ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
-KATA_VERSION=4.1.0
+KATA_VERSION=4.3.1
 curl -fL https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst | tar --zstd -x --strip-components=2 -C /opt
 ln -s /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
 EOF

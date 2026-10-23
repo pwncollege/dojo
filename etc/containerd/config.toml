@@ -1,0 +1,3 @@
+version = 3
+root = "/data/containerd"
+disabled_plugins = ["io.containerd.cri.v1.images", "io.containerd.cri.v1.runtime"]

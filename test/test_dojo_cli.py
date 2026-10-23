@@ -1135,9 +1135,15 @@ def test_dojofs_readonly_and_path_errors(cli_user):
 
 
 def test_dojofs_outside_container_eio():
-    result = dojo_run("sh", "-c", "cat /run/dojo/dojofs/workspace/privileged 2>&1; echo rc=$?")
-    assert "Input/output error" in result.stdout, result.stdout
-    assert "rc=1" in result.stdout, result.stdout
+    dojo_run("python3", "-c", "\n".join([
+        "import errno, os",
+        "try:",
+        "    os.read(os.open('/run/dojo/dojofs/workspace/privileged', os.O_RDONLY), 1)",
+        "except OSError as error:",
+        "    assert error.errno == errno.EIO, error",
+        "else:",
+        "    raise AssertionError('Expected EIO outside a workspace container')",
+    ]))
     assert dojo_run("stat", "-c", "%s", "/run/dojo/dojofs/workspace/privileged").stdout.strip() == "0", \
         "the privileged file has a size outside of a container"
 
@@ -1241,8 +1247,8 @@ def test_watchdog_prunes_unreferenced_images(admin_session):
     created = set()
     try:
         dojo_run("sh", "-c",
-                 f'printf "FROM hello-world\\nLABEL probe=one\\n" | docker build -q -t {tag} - && '
-                 f'printf "FROM hello-world\\nLABEL probe=two\\n" | docker build -q -t {tag} -',
+                 'tar -c --files-from /dev/null | docker import - && '
+                 f'printf "FROM hello-world\\nLABEL probe=one\\n" | docker build -q -t {tag} -',
                  container=target)
         created = set(dojo_run("docker", "images", "-qf", "dangling=true",
                                container=target).stdout.split()) - existing

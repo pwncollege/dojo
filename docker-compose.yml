@@ -376,7 +376,8 @@ services:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
-      - /data/docker/:/var/lib/docker:ro
+      - /data/docker/:/data/docker:ro,rslave
+      - /data/containerd/:/data/containerd:ro
       - /dev/disk/:/dev/disk:ro
 
   prometheus:

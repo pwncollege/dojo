@@ -16,8 +16,6 @@ RUN pip3 install --break-system-packages \
     psycopg2-binary
 
 RUN adduser -D hacker && \
-    addgroup -g 995 docker && \
-    addgroup hacker docker && \
     mkdir -p /home/hacker/.docker /home/hacker/.ssh && \
     chown -R hacker:hacker /home/hacker
 
@@ -29,9 +27,16 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-COPY --chmod=755 <<EOF /docker-entrypoint.sh
+COPY --chmod=755 <<'EOF' /docker-entrypoint.sh
 #!/bin/sh
 env > /etc/environment
+docker_gid=$(stat -c %g /var/run/docker.sock)
+docker_group=$(getent group "$docker_gid" | cut -d: -f1)
+if [ -z "$docker_group" ]; then
+    docker_group=docker
+    addgroup -g "$docker_gid" "$docker_group"
+fi
+addgroup hacker "$docker_group"
 if [ -f /var/mac/key ]; then
     cp /var/mac/key /home/hacker/.ssh
     chown hacker:hacker /home/hacker/.ssh/key
