@@ -11,7 +11,7 @@ function usage {
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: <dirname>)"
-	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
+	echo "	-D	specify a directory for /data/docker and <directory>-containerd for /data/containerd (default: ./cache/docker; specify as blank to disable)"
 	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-t	run dojo testcases (this will create a lot of test data)"
 	echo "	-v	run vibecheck mode (summarize git diff and test with AI)"
@@ -167,6 +167,7 @@ MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared"
 [ -f "$HOME/.docker/config.json" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$HOME/.docker/config.json:/root/.docker/config.json:ro" )
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
+	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR-containerd:/data/containerd" )
 	if [ "$START" == "yes" ]; then
 		sudo rm -rf $DOCKER_DIR/{containers,volumes}
 	fi
@@ -182,6 +183,8 @@ if [ "$MULTINODE" == "yes" ]; then
 	if [ -n "$DOCKER_DIR" ]; then
 		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1:/data/docker")
 		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2:/data/docker")
+		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1-containerd:/data/containerd")
+		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2-containerd:/data/containerd")
 		if [ "$START" == "yes" ]; then
 			sudo rm -rf $DOCKER_DIR-node1/{containers,volumes}
 			sudo rm -rf $DOCKER_DIR-node2/{containers,volumes}

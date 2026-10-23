@@ -121,11 +121,15 @@ jobs:
           mkdir -p /mnt/cache/dojo-image
           mkdir -p /mnt/cache/test-image
           mkdir -p /mnt/data/docker
+          mkdir -p /mnt/data/docker-containerd
           mkdir -p /mnt/data/workspace
           if [ "${{ matrix.mode }}" = "multinode" ]; then
             sudo rm -rf /mnt/data/docker-node1 /mnt/data/docker-node2
+            sudo rm -rf /mnt/data/docker-node1-containerd /mnt/data/docker-node2-containerd
             sudo cp -a /mnt/data/docker /mnt/data/docker-node1
             sudo cp -a /mnt/data/docker /mnt/data/docker-node2
+            sudo cp -a /mnt/data/docker-containerd /mnt/data/docker-node1-containerd
+            sudo cp -a /mnt/data/docker-containerd /mnt/data/docker-node2-containerd
           fi
 
       - name: Set up Docker storage
@@ -133,11 +137,12 @@ jobs:
           echo "::group::Current disk usage"
           df -h
           echo "::endgroup::"
-          sudo systemctl stop docker
-          sudo rm -rf /var/lib/docker
-          sudo mkdir -p /mnt/docker
+          sudo systemctl stop docker containerd
+          sudo rm -rf /var/lib/docker /var/lib/containerd
+          sudo mkdir -p /mnt/docker /mnt/containerd
           sudo ln -s /mnt/docker /var/lib/docker
-          sudo systemctl start docker
+          sudo ln -s /mnt/containerd /var/lib/containerd
+          sudo systemctl start containerd docker
 
       - uses: docker/setup-buildx-action@v3
 
