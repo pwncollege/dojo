@@ -41,7 +41,8 @@ let
         -nolisten tcp \
         -geometry 1024x768 \
         -depth 24 \
-        -SendPrimary=0
+        -SendPrimary=0 \
+        -SetPrimary=0
 
     ${service}/bin/dojo-service start desktop-service/novnc \
       ${novnc}/bin/novnc \

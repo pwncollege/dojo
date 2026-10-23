@@ -52,14 +52,15 @@ index 6e4af29..6f46a99 100644
          if (!UI.rfb) return;
          UI.rfb.showDotCursor = UI.getSetting('show_dot');
 diff --git a/core/clipboard.js b/core/clipboard.js
-index ae3cad1..a55be83 100644
+index ae3cad1..5dd59e2 100644
 --- a/core/clipboard.js
 +++ b/core/clipboard.js
-@@ -5,68 +5,191 @@
+@@ -5,68 +5,275 @@
   */
  
  import * as Log from './util/logging.js';
 -import { browserAsyncClipboardSupport } from './util/browser.js';
++import { isSafari } from './util/browser.js';
  
  export default class AsyncClipboard {
      constructor(target) {
@@ -73,6 +74,9 @@ index ae3cad1..a55be83 100644
 +        this._pasteTimer = null;
 +        this._generation = 0;
 +        this._redirectingFocus = false;
++        this._readingClipboard = false;
++        this._gestureTimer = null;
++        this._gestureRead = null;
 +        this._pasteTarget = document.createElement('textarea');
 +        this._pasteTarget.tabIndex = -1;
 +        this._pasteTarget.setAttribute('aria-label', 'Remote desktop clipboard paste');
@@ -90,6 +94,7 @@ index ae3cad1..a55be83 100644
          // ===== EVENT HANDLERS =====
  
          this.onpaste = () => {};
++        this.onclipboardavailable = () => {};
 +        this.onpastekey = () => {};
 +        this.onreleasekeys = () => {};
      }
@@ -110,34 +115,25 @@ index ae3cad1..a55be83 100644
 -            this._isAvailable = false;
 +            // Firefox and Safari do not expose clipboard permissions.
 +            return false;
++        }
++    }
++
++    _handleFocus() {
++        if (this._redirectingFocus || this._readingClipboard) return;
++        if (this._gestureTimer === null) this._cancel();
++        this.onclipboardavailable();
++    }
++
++    _handleBlur() {
++        if (!this._redirectingFocus && !this._readingClipboard) {
++            if (this._pasteKey) this.onreleasekeys();
++            this._cancel();
          }
 -        return this._isAvailable;
      }
  
-     async _handleFocus(event) {
+-    async _handleFocus(event) {
 -        if (!(await this._ensureAvailable())) return;
-+        if (this._redirectingFocus) return;
-+        this._cancel();
-+        const generation = this._generation;
-+        // Without a persistent grant, use the browser's paste event.
-+        if (!(await this._hasPermission('clipboard-read'))) return;
-+        if (!this._grabbed || generation !== this._generation) return;
-         try {
-             const text = await navigator.clipboard.readText();
-+            if (!this._grabbed || generation !== this._generation) return;
-             this.onpaste(text);
-         } catch (error) {
-             Log.Error("Clipboard read failed: ", error);
-         }
-     }
- 
-+    _handleBlur() {
-+        if (!this._redirectingFocus) {
-+            if (this._pasteKey) this.onreleasekeys();
-+            this._cancel();
-+        }
-+    }
-+
 +    _restoreFocus() {
 +        if (document.activeElement !== this._pasteTarget) return;
 +        this._redirectingFocus = true;
@@ -147,13 +143,68 @@ index ae3cad1..a55be83 100644
 +
 +    _cancel() {
 +        this._generation++;
++        this._readingClipboard = false;
 +        this._pendingWrite = null;
 +        this._pasteKey = null;
 +        clearTimeout(this._pasteTimer);
++        clearTimeout(this._gestureTimer);
++        this._gestureTimer = null;
++        if (this._gestureRead !== null) this._gestureRead(null);
++        this._gestureRead = null;
++    }
++
++    _forwardGesture() {
++        clearTimeout(this._gestureTimer);
++        const deadline = performance.now() + 900;
++        // WebKit forwards the click's gesture through timers for one second,
++        // but not through the WebSocket callback that requests clipboard text.
++        const poll = () => {
++            this._gestureTimer = null;
++            if (this._gestureRead !== null) {
++                const resolve = this._gestureRead;
++                this._gestureRead = null;
++                if (performance.now() < deadline) {
++                    resolve(this._readText());
++                } else {
++                    this._readingClipboard = false;
++                    resolve(null);
++                }
++            } else if (performance.now() < deadline) {
++                this._gestureTimer = setTimeout(poll, 10);
++            }
++        };
++        this._gestureTimer = setTimeout(poll, 0);
++    }
++
++    _canAccessClipboard() {
++        return this._grabbed && document.hasFocus() &&
++            document.activeElement === this._target;
++    }
++
++    async _readText() {
++        const generation = this._generation;
++        this._readingClipboard = true;
+         try {
++            if (!this._canAccessClipboard() || !navigator.clipboard?.readText) return null;
++            if (!navigator.userActivation?.isActive &&
++                !(await this._hasPermission('clipboard-read'))) return null;
++            if (generation !== this._generation || !this._canAccessClipboard()) return null;
+             const text = await navigator.clipboard.readText();
+-            this.onpaste(text);
++            if (generation !== this._generation || !this._canAccessClipboard()) return null;
++            return text;
+         } catch (error) {
+-            Log.Error("Clipboard read failed: ", error);
++            Log.Warn("Clipboard read failed: ", error);
++            return null;
++        } finally {
++            if (generation === this._generation) this._readingClipboard = false;
++        }
 +    }
 +
 +    _handleKeyDown(event) {
-+        const paste = !event.altKey &&
++        const matchStyle = event.metaKey && event.shiftKey && event.code === 'KeyV';
++        const paste = (!event.altKey || matchStyle) &&
 +            ((event.code === 'KeyV' && (event.ctrlKey || event.metaKey)) ||
 +             (event.code === 'Insert' && event.shiftKey));
 +        if (!paste || event.isComposing) return;
@@ -161,6 +212,23 @@ index ae3cad1..a55be83 100644
 +        // keyboard handler would preventDefault() and suppress that event.
 +        event.stopImmediatePropagation();
 +        this._cancel();
++        if (isSafari() && matchStyle && !event.altKey && navigator.clipboard?.readText) {
++            event.preventDefault();
++            // Safari has no native Command+Shift+V paste action. Start its
++            // clipboard request while the keydown still carries a gesture.
++            const pending = this._readText();
++            const generation = this._generation;
++            pending.then((text) => {
++                if (!this._grabbed || generation !== this._generation) return;
++                if (text !== null) {
++                    this.onpaste(text);
++                    this.onpastekey(event);
++                } else {
++                    this.onreleasekeys();
++                }
++            });
++            return;
++        }
 +        this._pasteKey = event;
 +        this._redirectingFocus = true;
 +        this._pasteTarget.focus({ preventScroll: true });
@@ -182,7 +250,7 @@ index ae3cad1..a55be83 100644
 +            this._restoreFocus();
 +            this.onreleasekeys();
 +            return;
-+        }
+         }
 +        const key = this._pasteKey;
 +        this._cancel();
 +        this.onpaste(event.clipboardData.getData('text/plain'));
@@ -191,7 +259,15 @@ index ae3cad1..a55be83 100644
 +    }
 +
 +    _handleClick(event) {
-+        if (event.type === 'mousedown' && event.button !== 0) return;
++        if (event.type === 'mousedown' && event.button !== 0 && event.button !== 2) return;
++        if (this._readingClipboard) return;
++        if (event.type === 'mousedown' && event.button === 2) {
++            this._cancel();
++            this._forwardGesture();
++            this.onclipboardavailable();
++            return;
++        }
++        this._forwardGesture();
 +        // Use mousedown: noVNC's mouse-capture overlay can consume the
 +        // subsequent click in Chromium before it reaches the canvas.
 +        if (this._pendingWrite === null) return;
@@ -215,18 +291,29 @@ index ae3cad1..a55be83 100644
 +        }).catch(() => {
 +            // Retry on the next desktop click, never on a paste keydown.
 +        });
-+    }
-+
+     }
+ 
      // ===== PUBLIC METHODS =====
  
++    readClipboard() {
++        if (!this._canAccessClipboard() || !navigator.clipboard?.readText) return Promise.resolve(null);
++        this._pendingWrite = null;
++        if (this._gestureTimer === null) return this._readText();
++        this._readingClipboard = true;
++        return new Promise((resolve) => { this._gestureRead = resolve; });
++    }
++
++    cancelRead() {
++        if (this._readingClipboard) this._cancel();
++    }
++
      writeClipboard(text) {
 -        // Can lazily check cached availability
 -        if (!this._isAvailable) return false;
 -        navigator.clipboard.writeText(text)
 -            .catch(error => Log.Error("Clipboard write failed: ", error));
 -        return true;
-+        if (this._grabbed && document.hasFocus() &&
-+            document.activeElement === this._target) {
++        if (!this._readingClipboard && this._canAccessClipboard()) {
 +            this._pendingWrite = text;
 +            this._tryWrite();
 +        }
@@ -305,18 +392,24 @@ index 3cc8917..eac3bf1 100644
          //Log.Debug(">> Keyboard.grab");
  
 diff --git a/core/rfb.js b/core/rfb.js
-index 8994317..2ea6333 100644
+index 8994317..1e50b02 100644
 --- a/core/rfb.js
 +++ b/core/rfb.js
-@@ -158,6 +158,7 @@ export default class RFB extends EventTargetMixin {
+@@ -158,6 +158,9 @@ export default class RFB extends EventTargetMixin {
          this._extendedPointerEventSupported = false;
  
          this._clipboardText = null;
++        this._clipboardNeedsRead = false;
++        this._clipboardReadPending = null;
 +        this._clipboardRequestStale = false;
          this._clipboardServerCapabilitiesActions = {};
          this._clipboardServerCapabilitiesFormats = {};
  
-@@ -273,6 +274,8 @@ export default class RFB extends EventTargetMixin {
+@@ -270,9 +273,12 @@ export default class RFB extends EventTargetMixin {
+ 
+         this._asyncClipboard = new AsyncClipboard(this._canvas);
+         this._asyncClipboard.onpaste = this.clipboardPasteFrom.bind(this);
++        this._asyncClipboard.onclipboardavailable = this._announceBrowserClipboard.bind(this);
  
          this._keyboard = new Keyboard(this._canvas);
          this._keyboard.onkeyevent = this._handleKeyEvent.bind(this);
@@ -325,23 +418,43 @@ index 8994317..2ea6333 100644
          this._remoteCapsLock = null; // Null indicates unknown or irrelevant
          this._remoteNumLock = null;
  
-@@ -511,6 +514,7 @@ export default class RFB extends EventTargetMixin {
+@@ -319,6 +325,7 @@ export default class RFB extends EventTargetMixin {
+         if (this._rfbConnectionState === "connecting" ||
+             this._rfbConnectionState === "connected") {
+             if (viewOnly) {
++                this._cancelClipboardRead();
+                 this._keyboard.ungrab();
+                 this._asyncClipboard.ungrab();
+             } else {
+@@ -507,11 +514,18 @@ export default class RFB extends EventTargetMixin {
+     clipboardPasteFrom(text) {
+         if (this._rfbConnectionState !== 'connected' || this._viewOnly) { return; }
+ 
++        const pendingRead = this._clipboardReadPending !== null;
++        this._cancelClipboardRead();
++
+         if (this._clipboardServerCapabilitiesFormats[extendedClipboardFormatText] &&
              this._clipboardServerCapabilitiesActions[extendedClipboardActionNotify]) {
  
              this._clipboardText = text;
 +            this._clipboardRequestStale = true;
              RFB.messages.extendedClipboardNotify(this._sock, [extendedClipboardFormatText]);
++            if (pendingRead && this._clipboardServerCapabilitiesActions[extendedClipboardActionProvide]) {
++                RFB.messages.extendedClipboardProvide(this._sock, [extendedClipboardFormatText], [text]);
++            }
          } else {
              let length, i;
-@@ -628,6 +632,7 @@ export default class RFB extends EventTargetMixin {
+             let data;
+@@ -628,6 +642,8 @@ export default class RFB extends EventTargetMixin {
          this._canvas.removeEventListener("touchstart", this._eventHandlers.focusCanvas);
          this._resizeObserver.disconnect();
          this._keyboard.ungrab();
++        this._cancelClipboardRead();
 +        this._asyncClipboard.ungrab();
          this._gestures.detach();
          this._sock.close();
          try {
-@@ -2335,8 +2340,9 @@ export default class RFB extends EventTargetMixin {
+@@ -2335,13 +2351,47 @@ export default class RFB extends EventTargetMixin {
  
      _writeClipboard(text) {
          if (this._viewOnly) return;
@@ -353,15 +466,80 @@ index 8994317..2ea6333 100644
          this.dispatchEvent(
              new CustomEvent("clipboard", {detail: {text: text}})
          );
-@@ -2441,6 +2447,7 @@ export default class RFB extends EventTargetMixin {
+     }
+ 
++    _cancelClipboardRead() {
++        if (this._clipboardReadPending !== null) this._asyncClipboard.cancelRead();
++        this._clipboardReadPending = null;
++        this._clipboardNeedsRead = false;
++    }
++
++    _announceBrowserClipboard() {
++        if (this._rfbConnectionState !== 'connected' || this._viewOnly ||
++            this._clipboardNeedsRead ||
++            !this._clipboardServerCapabilitiesFormats[extendedClipboardFormatText] ||
++            !this._clipboardServerCapabilitiesActions[extendedClipboardActionNotify]) return;
++        this._clipboardText = null;
++        this._clipboardNeedsRead = true;
++        this._clipboardReadPending = null;
++        this._clipboardRequestStale = true;
++        RFB.messages.extendedClipboardNotify(this._sock, [extendedClipboardFormatText]);
++    }
++
++    _provideBrowserClipboard() {
++        if (this._clipboardReadPending !== null) return;
++        const pending = {};
++        this._clipboardReadPending = pending;
++        this._asyncClipboard.readClipboard().then((text) => {
++            if (this._clipboardReadPending !== pending ||
++                this._rfbConnectionState !== 'connected' || this._viewOnly) return;
++            this._clipboardReadPending = null;
++            this._clipboardNeedsRead = false;
++            this._clipboardText = text === null ? '' : text;
++            RFB.messages.extendedClipboardProvide(this._sock,
++                                                  [extendedClipboardFormatText], [this._clipboardText]);
++        });
++    }
++
+     _handleServerCutText() {
+         Log.Debug("ServerCutText");
+ 
+@@ -2410,6 +2460,13 @@ export default class RFB extends EventTargetMixin {
+                     return true;
+                 }
+ 
++                if (this._clipboardNeedsRead &&
++                    this._clipboardServerCapabilitiesActions[extendedClipboardActionProvide] &&
++                    (formats & extendedClipboardFormatText)) {
++                    this._provideBrowserClipboard();
++                    return true;
++                }
++
+                 // Check if server has told us it can handle Provide and there is clipboard data to send.
+                 if (this._clipboardText != null &&
+                     this._clipboardServerCapabilitiesActions[extendedClipboardActionProvide]) {
+@@ -2426,7 +2483,7 @@ export default class RFB extends EventTargetMixin {
+ 
+                 if (this._clipboardServerCapabilitiesActions[extendedClipboardActionNotify]) {
+ 
+-                    if (this._clipboardText != null) {
++                    if (this._clipboardNeedsRead || this._clipboardText != null) {
+                         RFB.messages.extendedClipboardNotify(this._sock, [extendedClipboardFormatText]);
+                     } else {
+                         RFB.messages.extendedClipboardNotify(this._sock, []);
+@@ -2440,7 +2497,11 @@ export default class RFB extends EventTargetMixin {
+ 
                  if (this._clipboardServerCapabilitiesActions[extendedClipboardActionRequest]) {
  
++                    // An empty Notify can accompany our own ownership claim;
++                    // it must not cancel the request that claim triggered.
                      if (formats & extendedClipboardFormatText) {
++                        this._cancelClipboardRead();
 +                        this._clipboardRequestStale = false;
                          RFB.messages.extendedClipboardRequest(this._sock, [extendedClipboardFormatText]);
                      }
                  }
-@@ -2453,7 +2460,10 @@ export default class RFB extends EventTargetMixin {
+@@ -2453,7 +2514,10 @@ export default class RFB extends EventTargetMixin {
                  if (!(formats & extendedClipboardFormatText)) {
                      return true;
                  }
@@ -374,7 +552,7 @@ index 8994317..2ea6333 100644
  
                  // FIXME: Should probably verify that this data was actually requested
 diff --git a/docs/API-internal.md b/docs/API-internal.md
-index 1d0a110..4f68408 100644
+index 1d0a110..54f3965 100644
 --- a/docs/API-internal.md
 +++ b/docs/API-internal.md
 @@ -46,6 +46,8 @@ None
@@ -386,16 +564,18 @@ index 1d0a110..4f68408 100644
  
  ### 2.1.3 Callbacks
  
-@@ -94,7 +96,7 @@ None
+@@ -94,7 +96,9 @@ None
  
  | name               | parameters        | description
  | ------------------ | ----------------- | ------------
 -| writeClipboard     | (text)            | An async write text to clipboard
++| cancelRead         | ()                | Cancel an outstanding read |
++| readClipboard      | ()                | Read text on a server content request, using a recent click's timer when available; resolves to null if unavailable or canceled |
 +| writeClipboard     | (text)            | Attempt to write text, or queue it for a user gesture; no return value
  | grab               | ()                | Begin capturing clipboard events
  | ungrab             | ()                | Stop capturing clipboard events
  
-@@ -102,4 +104,6 @@ None
+@@ -102,4 +106,7 @@ None
  
  | name    | parameters | description
  | ------- | ---------- | ------------
@@ -403,6 +583,7 @@ index 1d0a110..4f68408 100644
 +| onpaste | (text)     | Called following a granted async read or a native text paste
 +| onpastekey | (event) | Called after onpaste to forward the captured paste shortcut
 +| onreleasekeys | () | Release keys when a native paste is canceled or times out
++| onclipboardavailable | () | Advertise browser text availability after focus or right-click without reading contents |
 diff --git a/docs/API.md b/docs/API.md
 index c1f6fac..c16a8e1 100644
 --- a/docs/API.md
@@ -417,10 +598,18 @@ index c1f6fac..c16a8e1 100644
  which is a `DOMString` with the clipboard data.
  
 diff --git a/tests/test.clipboard.js b/tests/test.clipboard.js
-index 1c173a8..91db28c 100644
+index 1c173a8..f747851 100644
 --- a/tests/test.clipboard.js
 +++ b/tests/test.clipboard.js
-@@ -17,10 +17,16 @@ describe('Async Clipboard', function () {
+@@ -7,6 +7,7 @@ describe('Async Clipboard', function () {
+     let clipboard;
+ 
+     beforeEach(function () {
++        sinon.stub(navigator, "userAgent").value("Chrome/153.0 Safari/537.36");
+         sinon.stub(navigator, "clipboard").value({
+             writeText: sinon.stub().resolves(),
+             readText: sinon.stub().resolves(),
+@@ -17,10 +18,16 @@ describe('Async Clipboard', function () {
          });
  
          targetMock = document.createElement("canvas");
@@ -437,7 +626,219 @@ index 1c173a8..91db28c 100644
          sinon.restore();
          targetMock = null;
          clipboard = null;
-@@ -50,7 +56,7 @@ describe('Async Clipboard', function () {
+@@ -39,6 +46,211 @@ describe('Async Clipboard', function () {
+         return new Promise(resolve => setTimeout(resolve, 0));
+     }
+ 
++    describe('on-demand reads', function () {
++        beforeEach(async function () {
++            stubClipboardPermissions('denied');
++            clipboard.grab();
++            targetMock.focus();
++            await nextTick();
++            clipboard.onpaste = sinon.spy();
++            clipboard.onclipboardavailable = sinon.spy();
++        });
++
++        it('announces right clicks without reading or writing clipboard contents', function () {
++            clipboard._pendingWrite = 'old remote';
++            targetMock.dispatchEvent(new MouseEvent('mousedown', { button: 2 }));
++            expect(clipboard.onclipboardavailable).to.have.been.calledOnce;
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++            expect(navigator.clipboard.writeText).not.to.have.been.called;
++            expect(clipboard._pendingWrite).to.equal(null);
++        });
++
++        for (const text of ['fresh λ✓', '']) {
++            it(`reads ${JSON.stringify(text)} on demand without generating a keyboard paste`, async function () {
++                navigator.clipboard.readText.resolves(text);
++                expect(await clipboard.readClipboard()).to.equal(text);
++                expect(navigator.clipboard.readText).to.have.been.calledOnce;
++                expect(clipboard.onpaste).not.to.have.been.called;
++            });
++        }
++
++        for (const agent of ['Chrome/153.0 Safari/537.36', 'Firefox/155.0', 'Version/26.6.2 Safari/605.1.15']) {
++            it(`defers a ${agent} network request to the click timer`, async function () {
++                const clock = sinon.useFakeTimers();
++                Object.defineProperty(navigator, 'userAgent', {configurable: true, value: agent});
++                navigator.clipboard.readText.resolves('menu text');
++                targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++                const pending = clipboard.readClipboard();
++                expect(navigator.clipboard.readText).not.to.have.been.called;
++                clock.tick(10);
++                expect(await pending).to.equal('menu text');
++                expect(navigator.clipboard.readText).to.have.been.calledOnce;
++                expect(clipboard.onpaste).not.to.have.been.called;
++                expect(clipboard._readingClipboard).to.be.false;
++            });
++        }
++
++        it('preserves the timer when the click also focuses the canvas', async function () {
++            const clock = sinon.useFakeTimers();
++            navigator.clipboard.readText.resolves('focused');
++            targetMock.blur();
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++            targetMock.focus();
++            const pending = clipboard.readClipboard();
++            clock.tick(10);
++            expect(await pending).to.equal('focused');
++        });
++
++        it('renews the gesture when clicking Paste after a menu has stayed open', async function () {
++            const clock = sinon.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'performance']});
++            navigator.clipboard.readText.resolves('fresh gesture');
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++            clock.tick(1000);
++            navigator.userActivation.isActive = false;
++            expect(await clipboard.readClipboard()).to.equal(null);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++            navigator.userActivation.isActive = true;
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 0}));
++            const pending = clipboard.readClipboard();
++            clock.tick(10);
++            expect(await pending).to.equal('fresh gesture');
++        });
++
++        it('does not read after the gesture deadline even if the timer was delayed', async function () {
++            const clock = sinon.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'performance']});
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 0}));
++            const pending = clipboard.readClipboard();
++            sinon.stub(window, 'performance').value({now: () => 2000});
++            clock.tick(10);
++            expect(await pending).to.equal(null);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++        });
++
++        it('settles a queued request when canceled before its timer runs', async function () {
++            const clock = sinon.useFakeTimers();
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++            const pending = clipboard.readClipboard();
++            clipboard.cancelRead();
++            expect(await pending).to.equal(null);
++            clock.tick(1000);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++        });
++
++        it('settles a queued request when the desktop disconnects', async function () {
++            const clock = sinon.useFakeTimers();
++            targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++            const pending = clipboard.readClipboard();
++            clipboard.ungrab();
++            expect(await pending).to.equal(null);
++            clock.tick(1000);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++        });
++
++
++        describe('Safari clipboard gestures', function () {
++            beforeEach(function () {
++                Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Version/27.0 Safari/605.1.15' });
++                navigator.clipboard.readText.rejects(new DOMException('A gesture is required', 'NotAllowedError'));
++            });
++
++            it('announces availability on focus and right-click without reading text', async function () {
++                targetMock.dispatchEvent(new Event('focus'));
++                targetMock.dispatchEvent(new MouseEvent('mousedown', {button: 2}));
++                await nextTick();
++                expect(clipboard.onclipboardavailable).to.have.been.calledTwice;
++                expect(navigator.clipboard.readText).not.to.have.been.called;
++            });
++
++            it('implements Command+Shift+V with a read in the original keydown', async function () {
++                navigator.clipboard.readText.resolves('keyboard Safari text');
++                clipboard.onpastekey = sinon.spy();
++                const key = new KeyboardEvent('keydown', {code: 'KeyV', metaKey: true, shiftKey: true, cancelable: true});
++                targetMock.dispatchEvent(key);
++                expect(key.defaultPrevented).to.be.true;
++                expect(navigator.clipboard.readText).to.have.been.calledOnce;
++                await nextTick();
++                expect(clipboard.onpaste).to.have.been.calledOnceWith('keyboard Safari text');
++                expect(clipboard.onpastekey).to.have.been.calledOnceWith(key);
++                expect(clipboard._readingClipboard).to.be.false;
++            });
++
++            it('releases modifiers without a duplicate prompt after keyboard read denial', async function () {
++                clipboard.onreleasekeys = sinon.spy();
++                targetMock.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyV', metaKey: true, shiftKey: true}));
++                await nextTick();
++                expect(clipboard.onpaste).not.to.have.been.called;
++                expect(clipboard.onreleasekeys).to.have.been.calledOnce;
++                expect(clipboard._readingClipboard).to.be.false;
++            });
++
++            it('lets Option+Command+Shift+V use the native paste event', function () {
++                const key = new KeyboardEvent('keydown', {code: 'KeyV', metaKey: true, shiftKey: true, altKey: true, cancelable: true});
++                targetMock.dispatchEvent(key);
++                expect(key.defaultPrevented).to.be.false;
++                expect(document.activeElement).to.equal(clipboard._pasteTarget);
++                expect(navigator.clipboard.readText).not.to.have.been.called;
++            });
++        });
++
++        it('does not prompt for an idle request without a persistent grant', async function () {
++            navigator.userActivation.isActive = false;
++            expect(await clipboard.readClipboard()).to.equal(null);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++        });
++
++        it('can service idle requests with an existing clipboard-read grant', async function () {
++            stubClipboardPermissions('granted');
++            navigator.userActivation.isActive = false;
++            navigator.clipboard.readText.resolves('granted');
++            expect(await clipboard.readClipboard()).to.equal('granted');
++        });
++
++        it('returns no data on rejection instead of using an old remote clipboard', async function () {
++            navigator.clipboard.readText.rejects(new Error('denied'));
++            expect(await clipboard.readClipboard()).to.equal(null);
++        });
++
++        it('does not read when the page or canvas is unfocused', async function () {
++            document.hasFocus.returns(false);
++            expect(await clipboard.readClipboard()).to.equal(null);
++            document.hasFocus.returns(true);
++            targetMock.blur();
++            expect(await clipboard.readClipboard()).to.equal(null);
++            expect(navigator.clipboard.readText).not.to.have.been.called;
++        });
++
++        it('preserves a read across permission-prompt blur and suppresses competing writes', async function () {
++            let resolveRead;
++            navigator.clipboard.readText.returns(new Promise((resolve) => { resolveRead = resolve; }));
++            const pending = clipboard.readClipboard();
++            clipboard._handleBlur();
++            clipboard._handleFocus();
++            clipboard.writeClipboard('old remote');
++            expect(navigator.clipboard.writeText).not.to.have.been.called;
++            expect(clipboard.onclipboardavailable).not.to.have.been.called;
++            resolveRead('fresh');
++            expect(await pending).to.equal('fresh');
++        });
++
++        it('ignores a completed read after ungrab', async function () {
++            let resolveRead;
++            navigator.clipboard.readText.returns(new Promise((resolve) => { resolveRead = resolve; }));
++            const pending = clipboard.readClipboard();
++            clipboard.ungrab();
++            resolveRead('stale');
++            expect(await pending).to.equal(null);
++        });
++
++        it('ignores a completed read after focus leaves the desktop', async function () {
++            let resolveRead;
++            navigator.clipboard.readText.returns(new Promise((resolve) => { resolveRead = resolve; }));
++            const pending = clipboard.readClipboard();
++            targetMock.blur();
++            resolveRead('stale');
++            expect(await pending).to.equal(null);
++        });
++    });
++
+     it('grab() adds listener if permissions granted', async function () {
+         stubClipboardPermissions('granted');
+ 
+@@ -50,7 +262,7 @@ describe('Async Clipboard', function () {
          expect(addListenerSpy.calledWith('focus')).to.be.true;
      });
  
@@ -446,7 +847,7 @@ index 1c173a8..91db28c 100644
          stubClipboardPermissions('denied');
  
          const addListenerSpy = sinon.spy(targetMock, 'addEventListener');
-@@ -58,7 +64,8 @@ describe('Async Clipboard', function () {
+@@ -58,64 +270,184 @@ describe('Async Clipboard', function () {
  
          await nextTick();
  
@@ -455,40 +856,60 @@ index 1c173a8..91db28c 100644
 +        expect(addListenerSpy.calledWith('keydown')).to.be.true;
      });
  
-     it('focus event triggers onpaste() if permissions granted', async function () {
-@@ -98,24 +105,179 @@ describe('Async Clipboard', function () {
- 
-     it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
+-    it('focus event triggers onpaste() if permissions granted', async function () {
++    it('focus announces availability without reading even with a persistent grant', async function () {
          stubClipboardPermissions('granted');
--        clipboard._isAvailable = true;
+-
+-        const text = 'hello clipboard world';
+-        navigator.clipboard.readText.resolves(text);
+-
+-        const spyPromise = new Promise(resolve => clipboard.onpaste = resolve);
+-
++        clipboard.onpaste = sinon.spy();
++        clipboard.onclipboardavailable = sinon.spy();
+         clipboard.grab();
+-
++        targetMock.focus();
+         await nextTick();
++        expect(clipboard.onclipboardavailable).to.have.been.calledOnce;
++        expect(clipboard.onpaste).not.to.have.been.called;
++        expect(navigator.clipboard.readText).not.to.have.been.called;
++    });
+ 
+-        targetMock.dispatchEvent(new Event('focus'));
++    it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
++        stubClipboardPermissions('granted');
 +        clipboard.grab();
 +        targetMock.focus();
++
++        const text = 'writing to clipboard';
++        const result = clipboard.writeClipboard(text);
  
-         const text = 'writing to clipboard';
-         const result = clipboard.writeClipboard(text);
- 
-         expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
--        expect(result).to.be.true;
+-        const res = await spyPromise;
+-        expect(res).to.equal(text);
++        expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
 +        expect(result).to.be.undefined;
      });
  
--    it('writeClipboard() does not call navigator.clipboard.writeText() if permissions denied', async function () {
+-    it('focus event does not trigger onpaste() if permissions denied', async function () {
 +    it('writeClipboard() attempts gesture-authorized writes without permission support', async function () {
          stubClipboardPermissions('denied');
--        clipboard._isAvailable = false;
 +        clipboard.grab();
 +        targetMock.focus();
  
-         const text = 'should not write';
-         const result = clipboard.writeClipboard(text);
+-        const text = 'should not read';
+-        navigator.clipboard.readText.resolves(text);
++        const text = 'should not write';
++        const result = clipboard.writeClipboard(text);
  
+-        clipboard.onpaste = sinon.spy();
 +        expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
 +        expect(result).to.be.undefined;
 +    });
-+
+ 
 +    it('retries a denied write on click and preserves manual fallback', async function () {
 +        stubClipboardPermissions('denied');
-+        clipboard.grab();
+         clipboard.grab();
 +        targetMock.focus();
 +        navigator.clipboard.writeText.rejects(new Error('activation required'));
 +        clipboard.writeClipboard('remote');
@@ -499,21 +920,22 @@ index 1c173a8..91db28c 100644
 +        expect(navigator.clipboard.writeText.callCount).to.equal(2);
 +        expect(clipboard._pendingWrite).to.equal(null);
 +    });
-+
+ 
 +    it('cancels pending writes when focus leaves the desktop', async function () {
 +        stubClipboardPermissions('denied');
 +        clipboard.grab();
 +        targetMock.focus();
 +        navigator.clipboard.writeText.rejects(new Error('activation required'));
 +        clipboard.writeClipboard('stale');
-+        await nextTick();
+         await nextTick();
 +        targetMock.blur();
 +        targetMock.dispatchEvent(new Event('blur'));
 +        targetMock.focus();
 +        targetMock.dispatchEvent(new MouseEvent('mousedown'));
 +        expect(navigator.clipboard.writeText.callCount).to.equal(1);
 +    });
-+
+ 
+-        targetMock.dispatchEvent(new Event('focus'));
 +    it('sends pasted text before the shortcut and cancels a stale pending write', async function () {
 +        stubClipboardPermissions('denied');
 +        clipboard.grab();
@@ -537,7 +959,7 @@ index 1c173a8..91db28c 100644
 +        expect(clipboard._pendingWrite).to.equal(null);
 +        expect(document.activeElement).to.equal(targetMock);
 +    });
-+
+ 
 +    it('releases keys and restores focus without pasting stale text on timeout', function () {
 +        const clock = sinon.useFakeTimers();
 +        clipboard.grab();
@@ -548,11 +970,14 @@ index 1c173a8..91db28c 100644
 +        targetMock.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }));
 +        clock.tick(1000);
 +        expect(document.activeElement).to.equal(targetMock);
-+        expect(clipboard.onpaste.called).to.be.false;
+         expect(clipboard.onpaste.called).to.be.false;
 +        expect(clipboard.onpastekey.called).to.be.false;
 +        expect(clipboard.onreleasekeys.calledOnce).to.be.true;
-+    });
-+
+     });
+ 
+-    it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
+-        stubClipboardPermissions('granted');
+-        clipboard._isAvailable = true;
 +    it('cancels a paste without text and releases held keys', function () {
 +        clipboard.grab();
 +        targetMock.focus();
@@ -566,34 +991,25 @@ index 1c173a8..91db28c 100644
 +        expect(clipboard.onpastekey.called).to.be.false;
 +        expect(clipboard.onreleasekeys.calledOnce).to.be.true;
 +    });
-+
+ 
+-        const text = 'writing to clipboard';
+-        const result = clipboard.writeClipboard(text);
 +    it('does not read after a permission query completes following ungrab', async function () {
++        navigator.userActivation.isActive = false;
 +        let resolvePermission;
 +        navigator.permissions.query.withArgs({ name: 'clipboard-read', allowWithoutGesture: false })
 +            .returns(new Promise((resolve) => { resolvePermission = resolve; }));
 +        clipboard.grab();
-+        const pending = clipboard._handleFocus();
++        targetMock.focus();
++        const pending = clipboard.readClipboard();
 +        clipboard.ungrab();
 +        resolvePermission({ state: 'granted' });
-+        await pending;
-+        expect(navigator.clipboard.readText.called).to.be.false;
++        expect(await pending).to.equal(null);
++        expect(navigator.clipboard.readText).not.to.have.been.called;
 +    });
-+
-+    it('ignores an outstanding read after ungrab', async function () {
-+        stubClipboardPermissions('granted');
-+        let resolveRead;
-+        navigator.clipboard.readText.returns(new Promise((resolve) => { resolveRead = resolve; }));
-+        clipboard.onpaste = sinon.spy();
-+        clipboard.grab();
-+        const pending = clipboard._handleFocus();
-+        await nextTick();
-+        expect(navigator.clipboard.readText.calledOnce).to.be.true;
-+        clipboard.ungrab();
-+        resolveRead('stale');
-+        await pending;
-+        expect(clipboard.onpaste.called).to.be.false;
-+    });
-+
+ 
+-        expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
+-        expect(result).to.be.true;
 +    it('does not intercept ordinary typing, AltGr, or IME composition', function () {
 +        clipboard.grab();
 +        for (const options of [
@@ -604,8 +1020,11 @@ index 1c173a8..91db28c 100644
 +            targetMock.dispatchEvent(new KeyboardEvent('keydown', options));
 +            expect(clipboard._pasteKey).to.equal(null);
 +        }
-+    });
-+
+     });
+ 
+-    it('writeClipboard() does not call navigator.clipboard.writeText() if permissions denied', async function () {
+-        stubClipboardPermissions('denied');
+-        clipboard._isAvailable = false;
 +    it('cleans up gestures and pending state on ungrab', function () {
 +        clipboard.grab();
 +        clipboard.ungrab();
@@ -615,7 +1034,9 @@ index 1c173a8..91db28c 100644
 +        clipboard.writeClipboard('disconnected');
 +        expect(navigator.clipboard.writeText.called).to.be.false;
 +    });
-+
+ 
+-        const text = 'should not write';
+-        const result = clipboard.writeClipboard(text);
 +    it('does not prompt for read access on focus', async function () {
 +        stubClipboardPermissions('prompt');
 +        clipboard.grab();
@@ -623,7 +1044,7 @@ index 1c173a8..91db28c 100644
 +        await nextTick();
 +        expect(navigator.clipboard.readText.called).to.be.false;
 +    });
-+
+ 
 +    it('queues an idle Chromium write without opening a permission prompt', async function () {
 +        stubClipboardPermissions('prompt');
 +        clipboard.grab();
@@ -693,7 +1114,7 @@ index ccc0124..ab4d36e 100644
          it('should decode keydown events', function (done) {
              const kbd = new Keyboard(document);
 diff --git a/tests/test.rfb.js b/tests/test.rfb.js
-index 8d3a971..e27250c 100644
+index 8d3a971..0fde25d 100644
 --- a/tests/test.rfb.js
 +++ b/tests/test.rfb.js
 @@ -3467,10 +3467,11 @@ describe('Remote Frame Buffer protocol client', function () {
@@ -759,9 +1180,138 @@ index 8d3a971..e27250c 100644
                      };
                      let expectedData = "Potatoes";
                      let data = [3, 0, 0, 0];
-@@ -3619,10 +3621,45 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3618,11 +3620,174 @@ describe('Remote Frame Buffer protocol client', function () {
+                     expect(dispatchEventSpy.args[0][0].detail.text).to.equal(expectedData);
                  });
  
++                describe('on-demand browser clipboard', function () {
++                    let read;
++                    let provide;
++                    let notify;
++                    let resolveRead;
++
++                    function receive(action, formats = 1) {
++                        const data = [3, 0, 0, 0];
++                        push32(data, toUnsigned32bit(-4));
++                        client._sock._websocket._receiveData(new Uint8Array(
++                            data.concat([action, 0, 0, formats])));
++                    }
++
++                    beforeEach(function () {
++                        read = sinon.stub(client._asyncClipboard, 'readClipboard').callsFake(
++                            () => new Promise((resolve) => { resolveRead = resolve; }));
++                        provide = sinon.spy(RFB.messages, 'extendedClipboardProvide');
++                        notify = sinon.spy(RFB.messages, 'extendedClipboardNotify');
++                    });
++
++                    afterEach(function () {
++                        read.restore();
++                        provide.restore();
++                        notify.restore();
++                    });
++
++                    it('answers format peeks without fetching host content', function () {
++                        client._announceBrowserClipboard();
++                        receive(0x04, 0);
++                        expect(notify).to.have.been.calledTwice;
++                        expect(notify).to.have.been.calledWith(client._sock, [1]);
++                        expect(read).not.to.have.been.called;
++                    });
++
++                    for (const text of ['fresh λ✓', '', null]) {
++                        it(`services a content request with ${JSON.stringify(text)}`, async function () {
++                            client._announceBrowserClipboard();
++                            receive(0x02);
++                            expect(read).to.have.been.calledOnce;
++                            expect(provide).not.to.have.been.called;
++                            resolveRead(text);
++                            await Promise.resolve();
++                            expect(provide).to.have.been.calledOnceWith(
++                                client._sock, [1], [text === null ? '' : text]);
++                        });
++                    }
++
++                    it('coalesces requests and preserves a pending read across an empty server notification', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        receive(0x08, 0);
++                        receive(0x02);
++                        expect(read).to.have.been.calledOnce;
++                        resolveRead('fresh');
++                        await Promise.resolve();
++                        expect(provide).to.have.been.calledOnceWith(client._sock, [1], ['fresh']);
++                    });
++
++                    it('preserves a pending read across repeated focus and menu announcements', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        expect(notify).to.have.been.calledOnce;
++                        expect(read).to.have.been.calledOnce;
++                        resolveRead('fresh');
++                        await Promise.resolve();
++                        expect(provide).to.have.been.calledOnceWith(client._sock, [1], ['fresh']);
++                    });
++
++                    it('rearms the read after a new browser clipboard announcement', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        resolveRead('first');
++                        await Promise.resolve();
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        resolveRead('second');
++                        await Promise.resolve();
++                        expect(read).to.have.been.calledTwice;
++                        expect(provide.secondCall.args).to.deep.equal([client._sock, [1], ['second']]);
++                    });
++
++                    it('lets a native keyboard paste satisfy a pending content request', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        client.clipboardPasteFrom('native paste');
++                        resolveRead('obsolete read');
++                        await Promise.resolve();
++                        expect(provide).to.have.been.calledOnceWith(client._sock, [1], ['native paste']);
++                    });
++
++                    it('discards a read superseded by a remote clipboard owner', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        receive(0x08);
++                        resolveRead('obsolete read');
++                        await Promise.resolve();
++                        expect(provide).not.to.have.been.called;
++                    });
++
++                    it('discards a read after switching to view-only', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        client.viewOnly = true;
++                        resolveRead('private');
++                        await Promise.resolve();
++                        expect(provide).not.to.have.been.called;
++                    });
++
++                    it('discards a read after disconnecting', async function () {
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        client.disconnect();
++                        resolveRead('private');
++                        await Promise.resolve();
++                        expect(provide).not.to.have.been.called;
++                    });
++
++                    it('does not advertise or read in view-only mode', function () {
++                        client.viewOnly = true;
++                        client._announceBrowserClipboard();
++                        receive(0x02);
++                        expect(notify).not.to.have.been.called;
++                        expect(read).not.to.have.been.called;
++                    });
++                });
++
                  describe('Handle Provide', function () {
 +                    for (const text of ['fresh local λ✓', '']) {
 +                        it(`preserves local paste ${JSON.stringify(text)} when an older remote response arrives`, function () {
@@ -805,7 +1355,7 @@ index 8d3a971..e27250c 100644
                          };
                          let expectedData = "Aå漢字!";
                          let data = [3, 0, 0, 0];
-@@ -3652,6 +3689,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3652,6 +3817,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -813,7 +1363,7 @@ index 8d3a971..e27250c 100644
                          };
                          let expectedData = "Oh\nmy\n!";
                          let data = [3, 0, 0, 0];
-@@ -3682,6 +3720,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3682,6 +3848,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -821,7 +1371,7 @@ index 8d3a971..e27250c 100644
                          };
                          let expectedData = "hello".repeat(100000);
                          let data = [3, 0, 0, 0];
-@@ -3783,6 +3822,23 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3783,6 +3950,23 @@ describe('Remote Frame Buffer protocol client', function () {
                          RFB.messages.extendedClipboardProvide.restore();
                      });
  
