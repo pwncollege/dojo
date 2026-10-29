@@ -2,6 +2,8 @@
 
 While we recommend using the [pwn.college](https://pwn.college) deployment, you can also run the DOJO locally.
 
+The host must use cgroup v2 to run the Ubuntu 26.04-based outer container.
+
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
 
@@ -30,11 +32,11 @@ This will run the initial setup, including building the challenge docker image.
 > **(MacOS)**
 >
 > It's important to note that while the dojo is capable of operating on MacOS (either x86 or ARM), MacOS has inherent limitations when it comes to nested Linux mounts within a MacOS bind mount.
-> This limitation specifically affects `data/docker`, which necessitates the use of OverlayFS mounts, preventing nested docker orchestration from functioning properly.
-> In order to circumvent this issue, you must ensure that`data/docker` is not backed by a MacOS bind mount.
-> This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount:
+> This limitation specifically affects `data/docker` and `data/containerd`, which require native Linux filesystems for nested container storage.
+> Mount Docker volumes at both paths so that neither directory is backed by a MacOS bind mount:
 > ```sh
 > -v "dojo-data-docker:/data/docker"
+> -v "dojo-data-containerd:/data/containerd"
 > ```
 
 By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` and `workspace.localhost.pwn.college` (which resolve to 127.0.0.1).
@@ -92,6 +94,10 @@ Note that `dojo update` is not guaranteed to be successful and should only be us
 ## Customization
 
 _All_ dojo data will be stored in the `./data` directory.
+
+Docker metadata and volumes are stored in `/data/docker`. Containerd stores images and snapshots in `/data/containerd`. Persist both directories when mounting them separately from `/data`. Existing Docker installations retain their previous image storage backend; the new containerd configuration does not migrate existing images.
+
+With the containerd image store, cAdvisor v0.55.1 omits per-container filesystem usage metrics. CPU, memory, network, and block I/O metrics remain available.
 
 Once logged in, you can add a dojo by visiting `/dojos/create`.
 Dojos are contained within git repositories.

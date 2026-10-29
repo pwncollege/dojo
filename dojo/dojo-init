@@ -166,8 +166,9 @@ dojo-node refresh
 iptables -F WORKSPACE-NET 2>/dev/null || iptables -N WORKSPACE-NET
 iptables -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
 iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
-iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 192.168.42.1 -p tcp --dport 80 -m conntrack --ctstate NEW -j ACCEPT
-iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 192.168.42.1 -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+# Docker applies DNAT before DOCKER-USER, so match the original web service address.
+iptables -A WORKSPACE-NET -s 10.0.0.0/8 -p tcp -m conntrack --ctstate NEW --ctorigdst 192.168.42.1 --ctorigdstport 80 -j ACCEPT
+iptables -A WORKSPACE-NET -s 10.0.0.0/8 -p tcp -m conntrack --ctstate NEW --ctorigdst 192.168.42.1 --ctorigdstport 443 -j ACCEPT
 iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
 if [ "${DOJO_OFFLINE}" != "true" ]; then
     for host in $(cat /opt/pwn.college/user_firewall.allowed); do
