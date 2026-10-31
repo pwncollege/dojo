@@ -16,7 +16,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import safe_join
 
 from . import models
-from .config import CTF_NAME, DOJO_HOST, THEME_STATIC, THEME_TEMPLATES
+from .config import CTF_NAME, DOJO_HOST, DOJO_HOSTNAME, THEME_STATIC, THEME_TEMPLATES
 from .models import cache, db, get_config, set_config
 from .utils import UserTokenExpiredException, lookup_user_token, registration_visible, render_markdown, sign, unsign
 from .utils import listeners  # noqa: F401
@@ -174,9 +174,9 @@ def csrf():
 def redirect_dojo():
     if "X-Forwarded-For" in request.headers:
         parsed_url = urlparse(request.url)
-        if parsed_url.netloc.split(":")[0] != DOJO_HOST:
+        if parsed_url.netloc.split(":")[0] != DOJO_HOSTNAME:
             netloc = DOJO_HOST
-            if ":" in parsed_url.netloc:
+            if ":" not in DOJO_HOST and ":" in parsed_url.netloc:
                 netloc += ":" + parsed_url.netloc.split(":")[1]
             redirect_url = urlunparse((
                 parsed_url.scheme,

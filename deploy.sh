@@ -255,6 +255,10 @@ if [ -z "$WORKSPACE_HOST_CONFIG" ]; then
         WORKSPACE_HOST_CONFIG="workspace.${DOJO_HOST_CONFIG}"
 fi
 
+# DOJO_HOST may carry a port (e.g. "dojo.example.com:8080"); --add-host entries
+# need the bare hostname
+DOJO_HOST_CONFIG="${DOJO_HOST_CONFIG%%:*}"
+
 if [[ "$DOJO_HOST_CONFIG" != "$CONTAINER_IP" && "$DOJO_HOST_CONFIG" =~ [A-Za-z] ]]; then
         TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${DOJO_HOST_CONFIG}:${CONTAINER_IP}")
 fi

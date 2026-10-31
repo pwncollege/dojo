@@ -5,6 +5,7 @@ import os
 import pathlib
 import json
 import socket
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,10 @@ USER_FIREWALL_ALLOWED = {
 }
 
 DOJO_HOST = os.getenv("DOJO_HOST")
+# Hostname-only form of DOJO_HOST: DOJO_HOST may carry a port (e.g.
+# "dojo.example.com:8080") for browser-facing URLs, but host entries
+# (extra_hosts) and nginx server_names must use the bare hostname.
+DOJO_HOSTNAME = urlsplit(f"//{DOJO_HOST}").hostname if DOJO_HOST else None
 WORKSPACE_SECRET = os.environ.get("WORKSPACE_SECRET")
 DOJO_SSH_SERVICE_KEY = os.environ.get("DOJO_SSH_SERVICE_KEY")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
@@ -108,3 +113,6 @@ for config_option in missing_errors:
     config_value = globals()[config_option]
     if not config_value:
         raise RuntimeError(f"Configuration Error: {config_option} must be set in the environment")
+
+if not DOJO_HOSTNAME:
+    raise RuntimeError("Configuration Error: DOJO_HOST must include a hostname (before any :port)")

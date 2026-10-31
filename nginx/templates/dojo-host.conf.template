@@ -1,1 +1,1 @@
-server_name ${DOJO_HOST};
+server_name ${DOJO_HOSTNAME};

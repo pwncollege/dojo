@@ -308,6 +308,7 @@ services:
       - "443:443"
     environment:
       - DOJO_HOST=${DOJO_HOST}
+      - DOJO_HOSTNAME=${DOJO_HOSTNAME}
       - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
@@ -441,7 +442,10 @@ services:
     ports:
       - "3000"
     extra_hosts:
-      - "${DOJO_HOST}:host-gateway"
+      # hostname-only form of DOJO_HOST (ports break host entries); derived by
+      # dojo-init into config.env (and by the `dojo` wrapper for pre-DOJO_HOSTNAME
+      # config.env files)
+      - "${DOJO_HOSTNAME:?DOJO_HOSTNAME is not set - re-run 'dojo init'}:host-gateway"
     environment:
       - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
       - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
