@@ -15,6 +15,18 @@ DOCKER_ARGS=${DOCKER_ARGS:--i}
 
 if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
     . /data/config.env
+    # config.env may predate DOJO_HOSTNAME (e.g. after `dojo update` without a
+    # re-init); derive it so compose never interpolates an empty host entry
+    if [ -z "${DOJO_HOSTNAME:-}" ] && [ -n "${DOJO_HOST:-}" ]; then
+        DOJO_HOSTNAME="${DOJO_HOST%%:*}"
+        case "$DOJO_HOSTNAME" in
+            ""|*[!A-Za-z0-9._-]*)
+                echo "Error: invalid DOJO_HOST '$DOJO_HOST' (no usable hostname)" >&2
+                exit 1
+                ;;
+        esac
+        export DOJO_HOSTNAME
+    fi
 fi
 
 case "$ACTION" in

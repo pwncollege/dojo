@@ -336,6 +336,8 @@ def test_compose_selects_singlenode_profiles():
     environment = _config_env()
     assert f"DOJO_HOST: {environment['DOJO_HOST']}" in config, "config.env was not interpolated into the compose config"
     assert f"WORKSPACE_HOST: {environment['WORKSPACE_HOST']}" in config, config[:200]
+    if "DOJO_HOSTNAME" in environment:
+        assert f"DOJO_HOSTNAME: {environment['DOJO_HOSTNAME']}" in config, "DOJO_HOSTNAME was not interpolated into the compose config"
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")

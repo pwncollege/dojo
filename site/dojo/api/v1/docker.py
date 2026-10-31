@@ -17,7 +17,7 @@ from flask_restx import Namespace, Resource
 from ...utils.decorators import authed_only
 from ...utils.user import get_current_user, is_admin
 
-from ...config import DOJO_HOST, HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
+from ...config import DOJO_HOST, DOJO_HOSTNAME, HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import DojoModules, DojoChallenges, Users, cache
 from ...utils import (
     container_name,
@@ -189,7 +189,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "dojo-user": user_ipv4(user),
             "pwn.college": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
-            DOJO_HOST: "192.168.42.1",
+            DOJO_HOSTNAME: "192.168.42.1",
         },
         init=True,
         detach=True,

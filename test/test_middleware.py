@@ -318,7 +318,10 @@ def test_redirect_dojo_canonical_host():
     assert lines["PROXIED"] == f"301 http://{host}/dojos?a=b", lines["PROXIED"]
     assert lines["DIRECT"] == "None", f"no redirect without X-Forwarded-For: {lines['DIRECT']}"
     assert lines["CANONICAL"] == "None", f"no redirect when the host already matches: {lines['CANONICAL']}"
-    assert lines["PORT"] == f"301 http://{host}:8443/dojos?a=b", lines["PORT"]
+    # a DOJO_HOST that carries its own port is already canonical; only a
+    # portless DOJO_HOST takes the port from the (proxied) request
+    expected_port = "" if ":" in host else ":8443"
+    assert lines["PORT"] == f"301 http://{host}{expected_port}/dojos?a=b", lines["PORT"]
 
 
 def test_api_routes_are_strict_about_trailing_slashes():

@@ -75,6 +75,22 @@ define MAC_HOSTNAME
 define MAC_USERNAME
 define ENABLE_SPLUNK false
 
+# DOJO_HOST may carry a port (e.g. "dojo.example.com:8080"), which browser-facing
+# URLs need, but host entries (extra_hosts) must not include. Compose cannot
+# split strings, so provide the hostname-only form as DOJO_HOSTNAME. Hand-edited
+# config.env values may be quoted, so strip surrounding quotes.
+dojo_host="$(grep -oP '^DOJO_HOST=\K.*' /data/.config.env)"
+dojo_host="${dojo_host%\"}"; dojo_host="${dojo_host#\"}"
+dojo_host="${dojo_host%\'}"; dojo_host="${dojo_host#\'}"
+dojo_host="${dojo_host%%:*}"
+case "$dojo_host" in
+    ""|*[!A-Za-z0-9._-]*)
+        echo "Error: invalid DOJO_HOST '$dojo_host' (no usable hostname)" >&2
+        exit 1
+        ;;
+esac
+echo "DOJO_HOSTNAME=${dojo_host}" >> /data/.config.env
+
 mv /data/.config.env /data/config.env
 . /data/config.env
 

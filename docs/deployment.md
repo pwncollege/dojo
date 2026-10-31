@@ -60,6 +60,8 @@ This will switch from the default development settings to production settings, w
 
 In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=example.com`.
 In order for this to work correctly, you must correctly point the domain at the server's IP via DNS.
+`DOJO_HOST` may also carry a port when the dojo is not served on the default port; for example: `-e DOJO_HOST=example.com:8080`.
+The port is kept for browser-facing URLs, while host entries and nginx server names use the hostname-only form (`DOJO_HOSTNAME`, derived into `config.env` by `dojo init`).
 
 By default, the `WORKSPACE_HOST` where all workspace content is served from is set to `workspace.$DOJO_HOST`.
 If you would like to change where workspaces are served from you can modify `WORKSPACE_HOST`; for example: `-e WORSKPACE_HOST=helloworskpace.example.com`.

@@ -56,7 +56,7 @@ case "$ACTION" in
             "" \
             "[Peer]" \
             "PublicKey = $WORKSPACE_KEY" \
-            "Endpoint = $DOJO_HOST:51820" \
+            "Endpoint = ${DOJO_HOSTNAME:-${DOJO_HOST%%:*}}:51820" \
             "AllowedIPs = 192.168.42.1/32, 10.0.0.0/12" \
             "PersistentKeepalive = 25" > /data/wireguard/wg0.conf
 
