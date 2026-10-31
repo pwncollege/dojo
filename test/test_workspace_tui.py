@@ -28,8 +28,20 @@ def catalog_client():
     return client
 
 
+async def settle(pilot):
+    while any(not worker.is_finished for worker in pilot.app.workers):
+        await pilot.pause(0.01)
+    await pilot.pause()
+
+
+async def press(pilot, *keys):
+    for key in keys:
+        await settle(pilot)
+        await pilot.press(key)
+
+
 async def choose_challenge(pilot):
-    await pilot.press("l", "j", "l", "j")
+    await press(pilot, "l", "j", "l", "j")
 
 
 @pytest.mark.parametrize("mode,practice", [("s", False), ("p", True)])
@@ -40,10 +52,10 @@ def test_browser_selects_the_highlighted_challenge_and_start_mode(catalog_client
     async def browse():
         async with app.run_test() as pilot:
             await choose_challenge(pilot)
-            await pilot.press("j")
+            await press(pilot, "j")
             if open_picker:
-                await pilot.press("enter")
-            await pilot.press(mode)
+                await press(pilot, "enter")
+            await press(pilot, mode)
 
     asyncio.run(browse())
     assert app.return_value == {
@@ -57,9 +69,9 @@ def test_browser_cancel_returns_to_challenges_and_quit_does_not_start(catalog_cl
     async def browse():
         async with app.run_test() as pilot:
             await choose_challenge(pilot)
-            await pilot.press("enter", "escape", "j")
+            await press(pilot, "enter", "escape", "j")
             assert app.selection["challenge"]["id"] == "banana"
-            await pilot.press("q")
+            await press(pilot, "q")
 
     asyncio.run(browse())
     assert app.return_value is None
@@ -71,7 +83,7 @@ def test_browser_cannot_start_a_dojo_or_module(catalog_client):
 
     async def browse():
         async with app.run_test() as pilot:
-            await pilot.press("s", "p", "l", "j", "s", "p", "q")
+            await press(pilot, "s", "p", "l", "j", "s", "p", "q")
 
     asyncio.run(browse())
     assert app.return_value is None
@@ -85,9 +97,9 @@ def test_browser_can_reload_after_the_catalog_was_unavailable(catalog_client):
 
     async def browse():
         async with app.run_test() as pilot:
-            await pilot.press("r")
+            await press(pilot, "r")
             await choose_challenge(pilot)
-            await pilot.press("s")
+            await press(pilot, "s")
 
     asyncio.run(browse())
     assert app.return_value == {
@@ -102,9 +114,9 @@ def test_browser_can_retry_loading_a_dojo_without_restarting(catalog_client):
 
     async def browse():
         async with app.run_test() as pilot:
-            await pilot.press("l", "h")
+            await press(pilot, "l", "h")
             await choose_challenge(pilot)
-            await pilot.press("p")
+            await press(pilot, "p")
 
     asyncio.run(browse())
     assert app.return_value == {
@@ -119,9 +131,9 @@ def test_browser_empty_catalog_can_be_refreshed(catalog_client):
 
     async def browse():
         async with app.run_test() as pilot:
-            await pilot.press("s", "p", "r")
+            await press(pilot, "s", "p", "r")
             await choose_challenge(pilot)
-            await pilot.press("s")
+            await press(pilot, "s")
 
     asyncio.run(browse())
     assert app.return_value["challenge"] == "apple"
@@ -139,7 +151,7 @@ def test_failed_start_returns_to_the_browser_and_can_be_retried(catalog_client, 
         async def browse():
             async with app.run_test() as pilot:
                 await choose_challenge(pilot)
-                await pilot.press("p" if start_error else "s")
+                await press(pilot, "p" if start_error else "s")
             return app.return_value
 
         return Mock(run=lambda: asyncio.run(browse()))
